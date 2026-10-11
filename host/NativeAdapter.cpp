@@ -37,6 +37,8 @@ int terrainIndex = 0, terrainHits = 0, wallHits = 0;
 std::uint32_t groundTriangles=0,wallTriangles=0;
 bool clearSent = false, tileDone = false;
 ULONGLONG terrainWarning = 0;
+ULONGLONG terrainStarted = 0, terrainSampled = 0;
+unsigned terrainUpdates = 0;
 CollisionTiles collisionTiles;
 bool packetsPrepared=false;
 DiagnosticWalls pendingWalls;
@@ -59,6 +61,7 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         walls.Begin(std::floor(sample.feet[0]),std::floor(sample.feet[1]),sample.feet[2]);
         std::copy_n(sample.feet,3,wallOrigin); detailStarted=false; jobSamples=collisionSamples;
         terrainIndex=terrainHits=wallHits=0; tileDone=false; packetsPrepared=false;
+        terrainStarted=now; terrainSampled=0; terrainUpdates=0;
         if (newWorld) { terrainWorld=worldSequence; clearSent=false; collisionTiles.Reset(); }
     }
     if (!clearSent) {
@@ -66,10 +69,14 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         clearSent=true;
     }
     if (tileDone) return;
+    ++terrainUpdates;
     if (!packetsPrepared&&terrainIndex<jobSamples) {
         LARGE_INTEGER start{},frequency{},current{};
         ::QueryPerformanceCounter(&start); ::QueryPerformanceFrequency(&frequency);
-        for (int budget=0;budget<(PlayEnabled()?32:8)&&terrainIndex<jobSamples;++budget) {
+        // Cheap queries can finish more of the patch within the same 1 ms
+        // deadline. The old 32-ray cap spread even open terrain across at least
+        // 35 observer updates, allowing walking to outrun the published patch.
+        for (int budget=0;budget<(PlayEnabled()?128:8)&&terrainIndex<jobSamples;++budget) {
             native::TraceStatus status;
             GroundPoint point{}; SurfacePoint surface{};
             const bool ground=terrainIndex<TerrainPatch::samples;
@@ -123,11 +130,14 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
             return;
         }
         packetsPrepared=true;
+        terrainSampled=::GetTickCount64();
     }
     // Never send an old pending batch after a relocation while new sampling is
     // in progress. Accepted keys remain tracked for eventual empty replacements.
     if (!packetsPrepared) return;
-    for (int budget=0;budget<4&&collisionTiles.Pending();++budget) {
+    // Submission only queues packets; queue capacity still applies backpressure.
+    // Avoid adding a dozen observer updates just to enqueue a finished patch.
+    for (int budget=0;budget<(PlayEnabled()?16:4)&&collisionTiles.Pending();++budget) {
         const auto& packet=collisionTiles.Front();
         if (!WitchCraftSubmitCollision(packet.type,packet.bytes.data(),static_cast<std::uint32_t>(packet.bytes.size()))) return;
         collisionTiles.Accepted();
@@ -143,6 +153,12 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
             terrainWorld,terrainIndex,terrainHits,wallHits,groundTriangles,wallTriangles,region.count,
             static_cast<unsigned>(collisionTiles.PacketCount()),
             region.minX,region.minY,region.minZ,region.maxX,region.maxY,region.maxZ);
+        Log(line);
+        const auto delivered=::GetTickCount64();
+        std::snprintf(line,sizeof(line),"terrain delivery: updates=%u sampleMs=%llu queueAckMs=%llu totalMs=%llu",
+            terrainUpdates,static_cast<unsigned long long>(terrainSampled-terrainStarted),
+            static_cast<unsigned long long>(delivered-terrainSampled),
+            static_cast<unsigned long long>(delivered-terrainStarted));
         Log(line);
         havePublishedPatch=true; publishedWorld=worldSequence; publishedRelocation=relocation;
         PublishDiagnosticWalls(pendingWalls);

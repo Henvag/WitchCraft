@@ -9,49 +9,31 @@ unchanged. Check protocol compatibility before upgrading the Fabric build.
 
 ## Current status
 
-The first integrated Minecraft play build is ready for its live game check.
-It restores the Minecraft HUD/hotbar and inventory, combines WASD with jumping,
-forwards inventory keys/mouse input, and stays active until F8 or an actual
-interruption. The old diagnostic movement time and area limits are removed.
-The smoothness revision uses shared-clock tick interpolation for the avatar and
-native camera anchor, targets a 60 Hz host deadline, avoids ordinary follow/stream
-input pauses and respects native ground snapping. All seventeen suites pass;
-the first live run still felt choppy at roughly 27 FPS. Block placement is confirmed.
-Sharper textures and small block-platform traversal are now confirmed; the next
-run measured roughly 50 FPS but still felt choppy. The latest build speeds up HUD
-blending, caches overlay window placement and measures the remaining host work.
-The last run reached 60 host FPS but still felt choppy, so smoothness remains
-unresolved. The following test measured only 10-12 fresh Minecraft/HUD FPS during
-play. Water now appears supported, with matching ground-support messages in the
-Minecraft log. The latest build quarters HUD transfer pixels at 1440p and remaps
-inventory coordinates, preserving native-resolution world meshes. All nineteen
-suites pass. Reduced transfers reached about 23 fresh FPS, with some perceived
-improvement. The latest update caches inventory scaling and includes a Minecraft
-patch using persistent OpenGL readback; its isolated GPU pixel check passed on
-the GTX 1080 Ti. Combined in-game performance remains to be verified.
-See [play mode](docs/PLAY_MODE.md) for controls,
-architecture, current limits and the combined game check.
+This is a working prototype, not a complete SkyCraft-equivalent conversion.
+Live tests have confirmed third-person avatar replacement, camera-relative WASD
+and diagonal movement, standing and moving jumps, HUD/hotbar, inventory clicks,
+block placement, small block-platform traversal and F8 restoration of Geralt.
+Water now appears supported by sampled terrain.
 
-WASD/diagonal/camera movement and F8 restoration previously passed live tests.
-Two successive standing jumps also passed. The first integrated run acquired the HUD and confirmed 49 follow updates before
-the immediate follow-lag cutoff ended play. The revised build releases movement
-briefly while the native anchor catches up, using small acknowledged steps.
-Inventory display and clicks are now confirmed by the user. The trace also records
-walking jumps and successful catch-up. The longer walk hit the old terrain coverage
-boundary; the streaming revision prefetches earlier and holds Minecraft active
-during brief coverage waits. The user confirmed a long walk stayed active; the trace recorded 180 follow updates.
-A moving jump then hit a native height-confirmation mismatch on rising ground.
-The revised airborne follow confirms horizontal movement and lets Witcher snap
-its hidden anchor to the ground. The user now confirms moving jumps work. A later Elytra/firework attempt returned
-Geralt after a ground acknowledgement timeout; flight was not established.
-Elytra flight and airborne Witcher camera integration remain unimplemented. The hidden native camera
-anchor stays at ground height during jumps. Sampled collision, native scene
-handoff, scenery occlusion, NPC/combat and elevated block traversal remain partial.
+The latest Minecraft persistent-readback patch improved measured fresh-frame
+arrival from roughly 23 FPS to about 53-60 FPS in recent samples at 2560x1440
+with a 1280x720 HUD transfer. The user reports smoother rendering, with some
+remaining choppiness. Walking also pauses while collision patches stream.
+The next native build raises per-update sampling and delivery caps while
+retaining the one-millisecond ray-query budget and queue backpressure;
+its live effect has not yet been measured.
 
-The native adapter targets DX12 executable 5.0.0.1048522 with verified signatures
-and uses the player's native GetWorldPosition dispatch callback. The stand-ins
-remain available for separate Minecraft testing. This is a prototype, not a
-complete SkyCraft-equivalent conversion.
+The hidden Witcher camera anchor follows native ground height. Elytra flight,
+full airborne camera integration, scenery occlusion and NPC/combat integration
+remain unimplemented or partial. Larger falls and tall structures can still
+end the handoff. The adapter targets Witcher 3 DX12 executable 5.0.0.1048522
+and checks native signatures before enabling its hooks.
+
+See [play mode](docs/PLAY_MODE.md) for controls and limitations, and the
+[Minecraft readback patch](minecraft-patch/README.md) for its build requirements.
+This repository contains source and documentation; game files, saves, compiled
+DLLs/JARs and local diagnostic logs are excluded. References to dated logs in
+the development notes describe local evidence and are not downloadable artifacts.
 
 ## Development history
 

@@ -190,3 +190,18 @@ Next live check: walk and turn for 30 seconds, then move inventory cursor and dr
 items for 10 seconds before F8. Compare fresh Minecraft/HUD cadence and user feel,
 and check that inventory clicks still align. Keep Witcher focused; focus loss
 still ends play. Elytra remains unsupported.
+
+## Latest measured rendering and streaming update
+
+The persistent OpenGL Minecraft readback path is active. The latest live trace
+shows approximately 53-60 fresh Minecraft/HUD frames per second in recent
+samples, with the overlay close to 60 FPS. The user reports smoother rendering
+but intermittent walking stops. The trace repeatedly records movement released
+while waiting for terrain streaming, even with native follow lag around 0.2 m.
+
+The next native build permits up to 128 rays per observation instead of 32,
+retaining the one-millisecond time budget checked after every query. It permits
+16 collision packets per observation instead of four, still stopping at queue
+backpressure. New terrain-delivery metrics separate sampling from queue/ack time.
+Live improvement from these caps is not yet verified. The same run ended with
+a grounded-camera fall-range return; this update does not change that limit.
