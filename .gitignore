@@ -1,0 +1,28 @@
+build/
+out/
+.vs/
+CMakeUserPresets.json
+__pycache__/
+*.pyc
+*.obj
+*.exe
+*.dll
+*.pdb
+
+# Local builds, game artifacts and profiling evidence
+dist/
+*.jar
+*.class
+*.jfr
+*.log
+minecraft-patch/classes/
+minecraft-patch/*.args
+minecraft-patch/*argfile*
+tools/*-observation-*.txt
+
+# Local credentials and editor state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
