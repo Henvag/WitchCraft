@@ -205,3 +205,18 @@ retaining the one-millisecond time budget checked after every query. It permits
 backpressure. New terrain-delivery metrics separate sampling from queue/ack time.
 Live improvement from these caps is not yet verified. The same run ended with
 a grounded-camera fall-range return; this update does not change that limit.
+
+## Native follow cadence update
+
+The faster-streaming live run felt smoother to the user. Its latest session
+recorded no explicit terrain-wait or follow-lag input releases; measured patch
+delivery was commonly 266-406 ms. Fresh Minecraft/HUD delivery still varied,
+including low-40-FPS windows, and movement did not yet feel like native Minecraft.
+
+The next build replaces the native observer's GetTickCount64 16 ms gate with a
+60 Hz QPC schedule. It tolerates small frame jitter, rejects duplicate callbacks
+and avoids catch-up bursts after a stall. This targets uneven native camera
+updates; it does not change Minecraft acceleration or remove collision guards.
+A new cadence log records actual observation rate and peak interval. Regression
+coverage includes jittered 60 Hz, 120 Hz callbacks, 30 Hz callbacks and a stall.
+All 19 test suites pass. Live cadence and perceived improvement remain unverified.

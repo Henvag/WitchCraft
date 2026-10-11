@@ -5,6 +5,7 @@
 #include "CollisionTiles.h"
 #include "NativePilot.h"
 #include "Link.h"
+#include "RenderTiming.h"
 #include <Windows.h>
 #include <cstdio>
 #include <cstring>
@@ -20,7 +21,8 @@ volatile LONG observing = 0;
 bool prepared = false, installed = false;
 inline constexpr std::uintptr_t positionWrapper = 0x2267e50;
 inline constexpr std::uintptr_t positionRecord = 0x5a5da70 + 0x8a3 * 24;
-ULONGLONG lastSample = 0, lastLog = 0;
+ULONGLONG lastLog = 0;
+ObserverCadence observerCadence;
 native::Sample previous{};
 std::uint32_t worldSequence = 0, relocation = 0;
 bool hadSample = false;
@@ -180,8 +182,20 @@ void Observe(void* context) {
     if (::InterlockedCompareExchange(&observing, 1, 0)) return;
     struct Release { ~Release() { ::InterlockedExchange(&observing, 0); } } release;
     const auto now = ::GetTickCount64();
-    if (lastSample && now - lastSample < 16) return;
-    lastSample = now;
+    LARGE_INTEGER clock{},frequency{};
+    ::QueryPerformanceCounter(&clock);::QueryPerformanceFrequency(&frequency);
+    if(!observerCadence.Due(clock.QuadPart,frequency.QuadPart)) return;
+    static std::int64_t cadenceAt=clock.QuadPart,previousAt=0,peakGap=0;
+    static unsigned cadenceSamples=0;
+    if(previousAt) peakGap=std::max(peakGap,clock.QuadPart-previousAt);
+    previousAt=clock.QuadPart;++cadenceSamples;
+    if(clock.QuadPart-cadenceAt>=frequency.QuadPart*5) {
+        char timing[160]{};
+        std::snprintf(timing,sizeof(timing),"native cadence: samplesPerSecond=%.1f peakGapMs=%.2f",
+            cadenceSamples*static_cast<double>(frequency.QuadPart)/(clock.QuadPart-cadenceAt),
+            peakGap*1000.0/frequency.QuadPart);
+        Log(timing);cadenceAt=clock.QuadPart;cadenceSamples=0;peakGap=0;
+    }
     native::Reader reader(imageBase, ReadMemory, nullptr);
     native::Sample sample{};
     GameFrame frame{};

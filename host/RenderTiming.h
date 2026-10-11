@@ -4,6 +4,24 @@
 #include <cmath>
 #include <cstdint>
 namespace witchcraft {
+// Phase-locked sampling avoids alternating 16/31 ms gaps from the Windows
+// millisecond clock. A small early allowance tolerates game-frame jitter;
+// the half-period guard rejects repeated callbacks within the same frame.
+class ObserverCadence {
+    std::int64_t next_=0,last_=0;
+    bool started_=false;
+public:
+    bool Due(std::int64_t now,std::int64_t frequency) {
+        if(frequency<1000) return false;
+        const auto period=frequency/60;
+        if(!started_) {started_=true;last_=now;next_=now+period;return true;}
+        if(now-last_<period/2||now+frequency/1000<next_) return false;
+        last_=now;
+        next_+=period;
+        if(next_<=now) next_=now+period; // No burst of catch-up work after a stall.
+        return true;
+    }
+};
 // Same previous/current physics-tick interpolation SkyCraft supplies for Skyrim.
 // Only the rendered pose changes; control always uses authoritative raw ticks.
 inline skycraft::proto::McState RenderMcState(const skycraft::proto::McState& mc,

@@ -4,6 +4,18 @@
 using namespace witchcraft;
 using namespace skycraft::proto;
 int main() {
+    // A 60 Hz game with sub-ms jitter must not lose alternate observations.
+    ObserverCadence cadence;
+    for(int frame=0;frame<600;++frame) {
+        const std::int64_t at=1000000+frame*1000000LL/60+(frame%2?400:0);
+        if(!cadence.Due(at,1000000)||cadence.Due(at+100,1000000)) return 8;
+    }
+    if(!cadence.Due(20000000,1000000)||cadence.Due(20000100,1000000)) return 9;
+    ObserverCadence fast;unsigned accepted=0;
+    for(int frame=0;frame<240;++frame) accepted+=fast.Due(frame*1000000LL/120,1000000);
+    if(accepted!=120) return 10;
+    ObserverCadence slow;
+    for(int frame=0;frame<30;++frame) if(!slow.Due(frame*1000000LL/30,1000000)) return 11;
     McState mc{};mc.tickQpc=1000;mc.tickMs=50;
     mc.prevX=10;mc.curX=11;mc.prevY=mc.curY=3;mc.prevZ=4;mc.curZ=5;
     mc.x=10.3;mc.y=3;mc.z=4.3;
