@@ -3,6 +3,21 @@
 #include <limits>
 using namespace witchcraft::native;
 int main() {
+    witchcraft::PilotCommand follow;
+    follow.groundFollow=follow.interpolateFollow=true;
+    follow.feet[1]=10;
+    follow.followState.tickQpc=1000;follow.followState.tickMs=50;
+    follow.followState.prevX=100;follow.followState.curX=100.2;
+    follow.followState.prevZ=-200;follow.followState.curZ=-200.2;
+    double early[3]{},late[3]{};
+    ResolvePilotFeet(follow,1010,1000,early);
+    ResolvePilotFeet(follow,1030,1000,late);
+    if(std::abs(early[0]-100.04)>1e-8||std::abs(late[0]-100.12)>1e-8||late[1]!=10) return 30;
+    ResolvePilotFeet(follow,1075,1000,late);
+    if(late[0]!=100.2||late[2]!=-200.2) return 31; // Never extrapolate past the known tick.
+    follow.interpolateFollow=false;follow.feet[0]=42;
+    ResolvePilotFeet(follow,1030,1000,late);
+    if(late[0]!=42||late[1]!=10) return 32; // Diagnostics keep their exact target.
     float current[]{100,200,10},out[4]{};double mc[]{100.2,10,-200.1};
     if(!PilotPosition(current,mc,out)||std::abs(out[0]-100.2f)>0.001f||std::abs(out[1]-200.1f)>0.001f||out[2]!=10||out[3]!=1) return 1;
     mc[0]=101;if(PilotPosition(current,mc,out)) return 2;

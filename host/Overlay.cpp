@@ -483,12 +483,8 @@ namespace witchcraft
             command.feet[0]=mc.curX;command.feet[1]=mc.curY;command.feet[2]=mc.curZ;
             if(playEnabled) {
                 play.PilotFeet(mc,command.feet);
-                LARGE_INTEGER clock{},frequency{};
-                QueryPerformanceCounter(&clock);QueryPerformanceFrequency(&frequency);
-                const auto visual=RenderMcState(mc,clock.QuadPart,frequency.QuadPart);
-                // The Witcher camera anchor follows the same continuous pose
-                // as the avatar, rather than stepping to each 20 Hz physics tick.
-                command.feet[0]=visual.x;command.feet[2]=visual.z;
+                command.interpolateFollow=true;
+                command.followState=mc;
             }
             else if(movementEnabled) movement.PilotFeet(mc,command.feet);
             PublishPilotCommand(command);

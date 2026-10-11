@@ -220,3 +220,18 @@ updates; it does not change Minecraft acceleration or remove collision guards.
 A new cadence log records actual observation rate and peak interval. Regression
 coverage includes jittered 60 Hz, 120 Hz callbacks, 30 Hz callbacks and a stall.
 All 19 test suites pass. Live cadence and perceived improvement remain unverified.
+
+## Follow-target latency update
+
+The QPC-cadence live test produced near-60-Hz native observations. The user
+reported even camera motion and good walking cadence, but a remaining dragging
+feeling. Moving samples still commonly showed 0.2-0.3 m of raw tick-to-anchor lag.
+
+The next build sends Minecraft's tick snapshot with the internal pilot command
+and evaluates its horizontal interpolation on the game thread when consumed.
+Previously the target was interpolated after the overlay upload and frozen until
+a later native callback. The new path retains grounded native Y, acknowledged
+movement, finite-distance checks, command expiry and interpolation clamping;
+it does not extrapolate or change Minecraft physics. Tests cover advancement
+between callbacks, endpoint clamping and unchanged diagnostic targets.
+All 19 suites pass; live reduction in perceived dragging remains unverified.

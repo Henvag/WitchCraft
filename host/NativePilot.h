@@ -1,7 +1,16 @@
 #pragma once
 #include "NativeLayout.h"
 #include "GameBridge.h"
+#include "RenderTiming.h"
 namespace witchcraft::native {
+inline void ResolvePilotFeet(const PilotCommand& command,std::int64_t now,
+    std::int64_t frequency,double* target) {
+    for(int i=0;i<3;++i) target[i]=command.feet[i];
+    if(command.groundFollow&&command.interpolateFollow) {
+        const auto visual=RenderMcState(command.followState,now,frequency);
+        target[0]=visual.x;target[2]=visual.z;
+    }
+}
 enum class PilotAck { Idle, Waiting, Confirmed, TimedOut };
 // Engine movement may become visible on a later observer callback. Permit only
 // one outstanding request and count it only after a subsequent position sample.

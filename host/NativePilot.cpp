@@ -71,7 +71,12 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     if(!reader.Read(sample->player+0x30c,reasons)) {fail("native pilot: hide state unavailable; stopped");return;}
     if(!hiddenPlayer&&reasons) {fail("native pilot: player already hidden by game; trial stopped");return;}
     alignas(16) float destination[4]{},rotation[4]{};
-    double target[]{command.feet[0],command.feet[1],command.feet[2]};
+    LARGE_INTEGER followNow{},followFrequency{};
+    QueryPerformanceCounter(&followNow);QueryPerformanceFrequency(&followFrequency);
+    double target[3]{};
+    // Evaluate the tick interpolation at consumption, not at the preceding
+    // overlay upload. This removes an extra stale-pose delay without prediction.
+    ResolvePilotFeet(command,followNow.QuadPart,followFrequency.QuadPart,target);
     const bool groundFollow=playEnabled&&command.groundFollow;
     if(groundFollow) target[1]=sample->feet[2]; // Keep engine ground ownership.
     if(!(playEnabled?PilotFollowPosition(sample->feet,target,destination):PilotPosition(sample->feet,target,destination))) {
