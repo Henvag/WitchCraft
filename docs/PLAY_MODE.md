@@ -422,3 +422,18 @@ camera reads use the original pose; no persistent camera position is written.
 Twenty-two test suites pass, including flight gating, held Space, double-tap
 edges, GUI release, F8 and finite camera conversion. Live camera/flight behavior
 still needs verification after installation.
+
+### Camera-stage validation correction
+
+The first live flight test confirmed vanilla takeoff, but the camera stayed on
+Geralt's ground anchor. The director clears its output lens to zero before it
+calls GetData. The hook incorrectly required a complete camera snapshot inside
+that construction stage, so it skipped every override. The correction validates
+actor/world identities, finite feet and pause state independently of camera
+output. Ordinary observers retain full pose/lens validation. A regression test
+uses the cleared lens and still rejects mismatched player identity.
+
+The trace also ended flight when native ground rose more than 0.6 metres above
+Minecraft. Creative flight now uses a symmetric 256-metre altitude bound; survival
+guards are unchanged. Camera logs record applied overrides, perspective, height
+difference and requested position for the next live verification.

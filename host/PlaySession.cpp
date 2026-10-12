@@ -44,7 +44,7 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
             const double elevation=mc->curY-nativeGround_;
             if(flight) {
                 jumping_=tookOff_=air_=false;
-                if(elevation<-.6||elevation>256) Stop("flight outside camera altitude range");
+                if(std::abs(elevation)>256) Stop("flight outside camera altitude range");
             }
             if(wet&&!flight) {
                 jumping_=tookOff_=air_=false;

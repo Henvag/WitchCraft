@@ -4,12 +4,14 @@
 #include "MotionTimeline.h"
 #include <Windows.h>
 #include <atomic>
+#include <cstdio>
 namespace witchcraft::native {
 namespace {
 using GetData=bool(*)(void*,void*);
 GetData original=nullptr;
 std::uintptr_t image=0;
 std::atomic<bool> ready=false;
+void(*logger)(const char*)=nullptr;
 bool ReadMemory(void*,std::uintptr_t address,void* out,std::size_t bytes) {
     SIZE_T got=0;return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<void*>(address),out,bytes,&got)&&got==bytes;
 }
@@ -22,7 +24,7 @@ bool CameraData(void* camera,void* data) {
     if(!command.active||!command.cameraOwned||!status.hidden||status.failed||
         foreground!=GetCurrentProcessId()||GetTickCount64()-command.publishedAt>150||!Link::Get().McAlive()) return ok;
     Reader reader(image,ReadMemory,nullptr);Sample sample{};GameFrame frame{};
-    if(!reader.Snapshot(sample)||sample.paused||!ReadGameFrame(frame)||
+    if(!reader.Snapshot(sample,false)||sample.paused||!ReadGameFrame(frame)||
         frame.worldId!=command.world||frame.collisionEpoch!=command.epoch||frame.relocation!=command.relocation) return ok;
     std::uint32_t count=0;reader.Read(sample.cameraObject+0x60,count);
     const auto stack=reader.Pointer(sample.cameraObject+0x58);
@@ -36,6 +38,13 @@ bool CameraData(void* camera,void* data) {
     if(CameraPosition(pose,sample.feet,values,position)) {
         for(int i=0;i<3;++i) values[i]=position[i];
         if(mc.cameraMode==0) {values[0x34/4]=.05f;static_cast<unsigned char*>(data)[0x3c]=1;}
+        static ULONGLONG lastLog=0;static unsigned applied=0;
+        ++applied;
+        if(logger&&GetTickCount64()-lastLog>=5000) {
+            char line[200]{};std::snprintf(line,sizeof(line),"native camera: applied=%u mode=%u elevation=%.3f requested=(%.3f,%.3f,%.3f)",
+                applied,mc.cameraMode,pose.y-sample.feet[2],position[0],position[1],position[2]);logger(line);
+            applied=0;lastLog=GetTickCount64();
+        }
     }
     return ok;
 }
@@ -54,7 +63,7 @@ void PrepareCamera(const Reader& reader,std::uintptr_t base,const Sample* sample
     if(!reader.Read(base+method,bytes)||std::memcmp(bytes,expected,sizeof(expected))) return;
     auto* slot=reinterpret_cast<void**>(base+table+0x10);DWORD protection=0;
     if(!VirtualProtect(slot,sizeof(void*),PAGE_READWRITE,&protection)) return;
-    image=base;original=reinterpret_cast<GetData>(base+method);
+    image=base;logger=log;original=reinterpret_cast<GetData>(base+method);
     const bool installed=InterlockedCompareExchangePointer(slot,reinterpret_cast<void*>(&CameraData),
         reinterpret_cast<void*>(base+method))==reinterpret_cast<void*>(base+method);
     DWORD ignored=0;VirtualProtect(slot,sizeof(void*),protection,&ignored);

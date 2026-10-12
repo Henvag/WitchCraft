@@ -69,7 +69,7 @@ public:
         }
         return true;
     }
-    bool Snapshot(Sample& out) const {
+    bool Snapshot(Sample& out, bool cameraComplete = true) const {
         Sample sample{};
         const auto table = Pointer(base_ + globals);
         if (!table) return false;
@@ -85,8 +85,14 @@ public:
         if (!sample.world) return false;
         std::uint32_t pauseCount = 0;
         if (!Read(game + 0x160, pauseCount) ||
-            !Read(sample.player + 0xa0, sample.feet) ||
-            !Read(sample.cameraObject + 0x70, sample.camera) ||
+            !Read(sample.player + 0xa0, sample.feet)) return false;
+        for(float v:sample.feet) if(!std::isfinite(v)||std::abs(v)>1000000) return false;
+        sample.paused = pauseCount != 0;
+        // GetData runs after the director clears its output pose/lens and
+        // before rebuilding them. Validate actor/world identity independently
+        // of the incomplete director output at this camera stage.
+        if(!cameraComplete) {out=sample;return true;}
+        if (!Read(sample.cameraObject + 0x70, sample.camera) ||
             !Read(sample.cameraObject + 0x790, sample.forward) ||
             !Read(sample.cameraObject + 0xa0, sample.rawFov)) return false;
         for (int i = 0; i < 3; ++i)

@@ -31,6 +31,7 @@ int main() {
     flight.mc.flags|=kMcFlying;flight.mc.flags&=~kMcOnGround;flight.mc.curY=30;
     fly(5000,17);REQUIRE(flight.play.Active()&&flight.play.Keys()==17);
     fly(5100);REQUIRE(!flight.play.Keys());
+    flight.mc.curY=8;fly(5150);REQUIRE(flight.play.Active()); // Native ground may rise underneath flight.
     flight.mc.flags|=kMcScreenOpen;fly(5200,17);REQUIRE(flight.play.Active()&&!flight.play.Keys());
     fly(5300,0,true);REQUIRE(!flight.play.Active());
     Fixture gated;gated.Start();gated.mc.flags|=kMcFlying|kMcCanFly;gated.Update(2700);

@@ -90,6 +90,13 @@ int main() {
     Put(player + 0xa0, feet); Put(camera + 0x70, eye);
     Put(camera + 0x790, forward); Put(camera + 0xa0, 67.0f);
     Check(reader.Snapshot(sample) && !sample.paused && sample.feet[0] == 1070);
+    Put(camera + 0xa0, 0.0f); // Director clears the lens before invoking GetData.
+    Check(!reader.Snapshot(sample));
+    Check(reader.Snapshot(sample,false)&&sample.player==player&&sample.world==table+0x7000);
+    Put(player, base + playerVtable + 8);
+    Check(!reader.Snapshot(sample,false)); // Stage-specific read still checks identity.
+    Put(player, base + playerVtable);Put(camera + 0xa0, 67.0f);
+    Check(reader.Snapshot(sample));
     double converted[3]{}; ToMinecraft(sample.feet, converted);
     Check(converted[0] == feet[0] && converted[1] == feet[2] && converted[2] == -feet[1]);
     Put(game + 0x160, std::uint32_t{1});
