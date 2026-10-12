@@ -11,6 +11,7 @@
 #include "DiagnosticMovement.h"
 #include "PlaySession.h"
 #include "RenderTiming.h"
+#include "McSnapshotCache.h"
 #include "HudBlend.h"
 #include "HudViewport.h"
 #include "HudScale.h"
@@ -174,8 +175,21 @@ namespace witchcraft
         const bool haveGame = ReadGameFrame(frame);
         if (haveGame && !GameCollisionDrained(frame.collisionEpoch))
             frame.flags &= ~kGameCollisionReady;
-        skycraft::proto::McState mc{};
-        const bool haveMc = link.ReadMcState(mc) && link.McAlive();
+        skycraft::proto::McState candidate{},mc{};
+        const bool received=link.ReadMcState(candidate);
+        static McSnapshotCache mcCache;
+        const bool haveMc=mcCache.Update(link.McAlive(),link.McPid(),received,
+            candidate,::GetTickCount64(),mc);
+        static unsigned missedReads=0,reusedReads=0;
+        static ULONGLONG snapshotLogAt=::GetTickCount64();
+        if(!received) {++missedReads;if(haveMc) ++reusedReads;}
+        if(::GetTickCount64()-snapshotLogAt>=5000) {
+            if(missedReads) {
+                char line[128]{};std::snprintf(line,sizeof(line),
+                    "MC snapshots: missed=%u reusedCoherent=%u maxAgeMs=100",missedReads,reusedReads);LogLine(line);
+            }
+            missedReads=reusedReads=0;snapshotLogAt=::GetTickCount64();
+        }
         static std::uint64_t sampledMcFrame=0;
         static unsigned freshMcSamples=0,newHudFrames=0;
         if(haveMc&&mc.frameCounter!=sampledMcFrame) {sampledMcFrame=mc.frameCounter;++freshMcSamples;}

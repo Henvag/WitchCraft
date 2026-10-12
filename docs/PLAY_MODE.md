@@ -383,3 +383,13 @@ Deep-water camera following, flight, first-person view and native combat integra
 remain separate features. All 20 native suites pass, and the patched Java build
 preserves unrelated JAR entries byte-for-byte. Live chat/command and swimming checks
 are pending.
+
+The live run confirmed T opens chat. It returned Geralt before command testing;
+the host trace shows a single unavailable/zero Minecraft snapshot between valid
+in-world GUI snapshots, with no native pilot failure. The next host build retains
+the last coherent snapshot for at most 100 ms only while the same Minecraft PID
+has a healthy heartbeat. Cache fallback never renews its age. Coherent new world,
+GUI or death flags are applied immediately, and disconnect/PID change/expiry
+invalidate the cache. Logs count missed reads and coherent reuse. All 21 suites
+pass, including the recorded chat/read-race sequence and expiry/peer-change checks.
+The Minecraft JAR is unchanged for this correction; live verification is pending.
