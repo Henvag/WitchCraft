@@ -306,6 +306,9 @@ public final class SkyClient {
 
 	private static void requestTeleport(Minecraft minecraft, double x, double y, double z, float yaw, float pitch) {
 		LocalPlayer player = minecraft.player;
+		// A fresh host handoff must settle even if the mirror save was flying.
+		player.getAbilities().flying = false;
+		player.onUpdateAbilities();
 		player.setPos(x, y, z);
 		player.setDeltaMovement(Vec3.ZERO);
 		player.resetFallDistance();
@@ -315,6 +318,8 @@ public final class SkyClient {
 			server.execute(() -> {
 				ServerPlayer sp = server.getPlayerList().getPlayer(uuid);
 				if (sp != null) {
+					sp.getAbilities().flying = false;
+					sp.onUpdateAbilities();
 					sp.teleportTo(x, y, z);
 					sp.setYRot(yaw);
 					sp.setXRot(pitch);

@@ -437,3 +437,15 @@ The trace also ended flight when native ground rose more than 0.6 metres above
 Minecraft. Creative flight now uses a symmetric 256-metre altitude bound; survival
 guards are unchanged. Camera logs record applied overrides, perspective, height
 difference and requested position for the next live verification.
+
+### Saved-flight startup correction
+
+After relaunch, the link and collision queue were healthy but the player still
+reported flying from the creative mirror save. DiagnosticSettle excluded that
+state, preventing an arrival teleport and leaving the avatar hidden. Play mode
+now permits a saved mayfly state to begin arrival when the camera hook is ready.
+The Minecraft arrival teleport clears flying on both client and integrated
+server and updates abilities, preserving creative mode and its flight permission.
+A regression covers saved flight, teleport issuance, grounding and active play.
+Camera-stage validation remains installed; live camera-follow verification is
+still pending because this startup issue prevented takeover.

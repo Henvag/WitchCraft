@@ -21,6 +21,15 @@ struct Fixture {
     void Move(double x) {game.feet[0]=mc.x=mc.curX=x;}
 };
 int main() {
+    Fixture savedFlight;savedFlight.mc.flags=kMcInWorld|kMcCanFly|kMcFlying;
+    auto arrive=[&](unsigned now) {
+        ++savedFlight.mc.frameCounter;
+        savedFlight.play.Update(&savedFlight.game,&savedFlight.mc,true,true,true,now,savedFlight.sky,0,false,true,true,true);
+    };
+    arrive(0);arrive(2000);REQUIRE(savedFlight.sky.teleportSeq!=0);
+    savedFlight.mc.teleportAck=savedFlight.sky.teleportSeq;
+    savedFlight.mc.flags=kMcInWorld|kMcCanFly|kMcOnGround;arrive(2100);arrive(2600);
+    REQUIRE(savedFlight.play.Active()); // Saved flight cannot block a fresh handoff.
     Fixture flight;flight.Start();flight.mc.flags|=kMcCanFly;
     auto fly=[&](unsigned now,unsigned keys=0,bool stop=false,bool camera=true) {
         ++flight.mc.frameCounter;

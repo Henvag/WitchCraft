@@ -8,7 +8,12 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
     keys_=0;
     if(!active_&&!finished_) {
         if(sequence_) sky.teleportSeq=sequence_;
-        settle_.Update(game,mc,alive,focused,consumed,now,sky);
+        auto arrival=mc?*mc:skycraft::proto::McState{};
+        // A saved creative player may restart airborne. The arrival teleport
+        // clears vanilla flight; allow it to begin rather than deadlocking the
+        // gravity handoff on the old world's persisted ability state.
+        if(cameraOwned&&(arrival.flags&kMcCanFly)) arrival.flags&=~kMcFlying;
+        settle_.Update(game,mc?&arrival:nullptr,alive,focused,consumed,now,sky);
         sequence_=sky.teleportSeq;reason_=settle_.Reason();
         if(settle_.Status()==DiagnosticSettle::State::failed) {
             settle_=DiagnosticSettle{};reason_="waiting to settle after interruption";
