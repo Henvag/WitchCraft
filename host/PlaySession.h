@@ -6,7 +6,7 @@ class PlaySession {
 public:
     void Update(const GameFrame*,const skycraft::proto::McState*,bool alive,bool focused,
         bool consumed,std::uint64_t now,skycraft::proto::SkyState&,std::uint8_t keys,
-        bool stop,bool inputReady,bool hidden);
+        bool stop,bool inputReady,bool hidden,bool cameraOwned=false);
     bool Active() const {return active_;}
     std::uint8_t Keys() const {return keys_;}
     const char* Reason() const {return reason_;}

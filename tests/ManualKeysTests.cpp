@@ -1,6 +1,9 @@
 #include "ManualKeys.h"
 using namespace witchcraft;
 int main() {
+    ManualKeys perspective;perspective.playMode=true;
+    perspective.Event(0x74,true,true,true,false,false);perspective.Event(0x74,false,true,true,false,false);
+    if(perspective.uiCount!=2||perspective.uiEvents[0]!=(0x8000|62)||perspective.uiEvents[1]!=62) return 60;
     ManualKeys keys;
     if(!keys.Event('W',true,true,true,false,false)||!keys.forward||keys.wBlocked!=1) return 1;
     keys.Disable();

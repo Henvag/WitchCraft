@@ -10,6 +10,7 @@
 #include "DiagnosticAvatar.h"
 #include "DiagnosticMovement.h"
 #include "PlaySession.h"
+#include "NativeCamera.h"
 #include "RenderTiming.h"
 #include "McSnapshotCache.h"
 #include "HudBlend.h"
@@ -345,10 +346,10 @@ namespace witchcraft
             const auto input=manualEnabled?PollManualInput(capture&&!status.failed,playEnabled,(mc.flags&skycraft::proto::kMcScreenOpen)!=0,width,height):ManualInput{};
             playInput=input;
             if(playEnabled) {
-                play.Update(haveGame&&mc.cameraMode==1?&frame:nullptr,haveMc?&mc:nullptr,haveMc&&!status.failed,
+                play.Update(haveGame&&(mc.cameraMode==1||native::CameraReady())?&frame:nullptr,haveMc?&mc:nullptr,haveMc&&!status.failed,
                     focused&&game&&!::IsIconic(game)&&width>=100&&height>=100,
                     haveGame&&GameCollisionDrained(frame.collisionEpoch)&&link.CollisionConsumed(),now,sky,
-                    input.movement,input.stop,input.ready,status.hidden);
+                    input.movement,input.stop,input.ready,status.hidden,native::CameraReady());
                 if(input.overflow) {play.Stop("input queue overflow; returning Geralt");sky.flags=skycraft::proto::kSkyMenuOpen;}
                 if(play.Active()&&input.ready) {
                     // Cursor positions are tracked at native resolution, while
@@ -358,6 +359,15 @@ namespace witchcraft
                     if(input.gui) cursor(input.cursorX,input.cursorY);
                     for(unsigned i=0;i<input.eventCount;++i) {
                         const auto& event=input.events[i];
+                        // F5 switches our supported first/behind perspectives.
+                        // Skip vanilla's front view so native look ownership
+                        // stays consistent with movement and item aiming.
+                        if(event.type==skycraft::proto::kInKey&&event.code==62&&!input.gui&&native::CameraReady()) {
+                            if(event.a) for(unsigned press=0;press<(mc.cameraMode==1?2u:1u);++press) {
+                                link.PushInput(skycraft::proto::kInKey,62,1);link.PushInput(skycraft::proto::kInKey,62,0);
+                            }
+                            continue;
+                        }
                         if(event.type==skycraft::proto::kInCursor) cursor(event.a,event.b);
                         else link.PushInput(static_cast<skycraft::proto::InputType>(event.type),event.code,event.a,event.b,event.c);
                     }
@@ -381,7 +391,7 @@ namespace witchcraft
             constexpr std::uint16_t codes[]{26,4,22,7,44};
             for(unsigned i=0;i<5;++i) link.PushInput(skycraft::proto::kInKey,codes[i],(desired&(1u<<i))?1:0);
             if(haveMc&&focused&&(mc.flags&skycraft::proto::kMcInWorld)&&!(mc.flags&skycraft::proto::kMcScreenOpen)&&
-                mc.cameraMode!=1&&now>=nextPilotPerspective) {
+                ((playEnabled&&play.Active()&&native::CameraReady())?mc.cameraMode==2:mc.cameraMode!=1)&&now>=nextPilotPerspective) {
                 link.PushInput(skycraft::proto::kInKey,62,1);link.PushInput(skycraft::proto::kInKey,62,0);nextPilotPerspective=now+750;
             }
             const bool active=playEnabled?play.Active():movementEnabled?movement.Active():pilot.Active();
@@ -491,7 +501,9 @@ namespace witchcraft
             bool pixels=false;const auto* bgra=static_cast<const std::uint8_t*>(g_bits);
             for(std::size_t i=0;i<static_cast<std::size_t>(width)*height;++i) if(bgra[i*4+3]) { pixels=true;break; }
             PilotCommand command;
-            command.active=uploaded&&pixels&&pilotDisplay;
+            command.active=uploaded&&(pixels||(playEnabled&&mc.cameraMode==0&&native::CameraReady()))&&pilotDisplay;
+            command.cameraOwned=playEnabled&&native::CameraReady();
+            command.publishedAt=::GetTickCount64();
             command.groundFollow=playEnabled&&play.GroundFollow();
             command.world=frame.worldId;command.epoch=frame.collisionEpoch;command.relocation=frame.relocation;
             command.feet[0]=mc.curX;command.feet[1]=mc.curY;command.feet[2]=mc.curZ;

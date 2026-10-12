@@ -34,6 +34,7 @@ add_library(dinput8 SHARED
 	host/GameBridge.cpp
 	host/Session.cpp
 	host/NativeAdapter.cpp
+	host/NativeCamera.cpp
 	host/NativePilot.cpp
 	host/MotionTimeline.cpp
 	host/NativeCollision.cpp
@@ -68,6 +69,12 @@ if(MINGW)
 endif()
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(witchcraft_camera_tests tests/CameraTests.cpp)
+    target_include_directories(witchcraft_camera_tests PRIVATE host protocol)
+    if(MINGW)
+        target_link_options(witchcraft_camera_tests PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+    add_test(NAME camera COMMAND witchcraft_camera_tests)
     add_executable(witchcraft_mc_snapshot_tests tests/McSnapshotCacheTests.cpp host/PlaySession.cpp host/DiagnosticSettle.cpp)
     target_include_directories(witchcraft_mc_snapshot_tests PRIVATE host protocol)
     if(MINGW)

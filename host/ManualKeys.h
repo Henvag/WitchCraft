@@ -17,7 +17,7 @@ struct ManualKeys {
         if(vk>='A'&&vk<='Z') return 4+vk-'A';
         if(vk>='1'&&vk<='9') return 30+vk-'1';
         switch(vk) {
-        case '0':return 39;case 0x0d:return 40;case 0x1b:return 41;
+        case 0x74:return 62;case '0':return 39;case 0x0d:return 40;case 0x1b:return 41;
         case 8:return 42;case 9:return 43;case 0x20:return 44;
         case 0xbd:return 45;case 0xbb:return 46;case 0xdb:return 47;case 0xdd:return 48;
         case 0xdc:return 49;case 0xba:return 51;case 0xde:return 52;case 0xc0:return 53;
@@ -30,7 +30,7 @@ struct ManualKeys {
         }
     }
     bool UiAllowed(unsigned vk) const {
-        return guiMode||vk=='E'||vk=='T'||vk=='Q'||vk=='F'||
+        return guiMode||vk==0x74||vk=='E'||vk=='T'||vk=='Q'||vk=='F'||
             (vk>='1'&&vk<='9')||vk==0x1b||vk==0x10||vk==0xa0||vk==0xa1||
             vk==0x11||vk==0xa2||vk==0xa3;
     }

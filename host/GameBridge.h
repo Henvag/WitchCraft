@@ -53,6 +53,8 @@ private:
 bool ReadGameFrame(GameFrame& out);
 struct PilotCommand {
     bool active=false;
+    bool cameraOwned=false;
+    std::uint64_t publishedAt=0;
     bool groundFollow=false; // Native anchor stays on terrain during MC jumps.
     bool interpolateFollow=false;
     skycraft::proto::McState followState{}; // Tick snapshot, evaluated on the game thread.

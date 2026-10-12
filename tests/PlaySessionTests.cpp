@@ -21,6 +21,20 @@ struct Fixture {
     void Move(double x) {game.feet[0]=mc.x=mc.curX=x;}
 };
 int main() {
+    Fixture flight;flight.Start();flight.mc.flags|=kMcCanFly;
+    auto fly=[&](unsigned now,unsigned keys=0,bool stop=false,bool camera=true) {
+        ++flight.mc.frameCounter;
+        flight.play.Update(&flight.game,&flight.mc,true,true,true,now,flight.sky,keys,stop,true,true,camera);
+    };
+    fly(2700,16);REQUIRE(flight.play.Keys()==16);
+    fly(2750);fly(2800,16);REQUIRE(flight.play.Keys()==16); // Vanilla double-tap edges.
+    flight.mc.flags|=kMcFlying;flight.mc.flags&=~kMcOnGround;flight.mc.curY=30;
+    fly(5000,17);REQUIRE(flight.play.Active()&&flight.play.Keys()==17);
+    fly(5100);REQUIRE(!flight.play.Keys());
+    flight.mc.flags|=kMcScreenOpen;fly(5200,17);REQUIRE(flight.play.Active()&&!flight.play.Keys());
+    fly(5300,0,true);REQUIRE(!flight.play.Active());
+    Fixture gated;gated.Start();gated.mc.flags|=kMcFlying|kMcCanFly;gated.Update(2700);
+    REQUIRE(!gated.play.Active()); // Flight requires the native camera hook.
     Fixture water;water.Start();water.mc.flags&=~kMcOnGround;water.mc.flags|=kMcInWater;
     water.mc.curY=10.3;water.Update(2700,17);water.Update(4700,17);
     REQUIRE(water.play.Active()&&water.play.Keys()==17);

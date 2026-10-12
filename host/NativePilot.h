@@ -6,7 +6,8 @@ namespace witchcraft::native {
 inline bool UseLatestFollowState(PilotCommand& command,const skycraft::proto::McState& latest) {
     using namespace skycraft::proto;
     if(!command.groundFollow||!command.interpolateFollow||
-        !(latest.flags&kMcInWorld)||(latest.flags&(kMcDead|kMcFlying))||
+        !(latest.flags&kMcInWorld)||(latest.flags&kMcDead)||
+        ((latest.flags&kMcFlying)&&!command.cameraOwned)||
         latest.teleportAck!=command.followState.teleportAck||
         latest.frameCounter<command.followState.frameCounter||
         latest.tickQpc<command.followState.tickQpc) return false;

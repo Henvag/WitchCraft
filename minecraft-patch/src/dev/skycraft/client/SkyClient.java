@@ -358,6 +358,9 @@ public final class SkyClient {
 			if (player.isInWater()) {
 				flags |= 1 << 8;
 			}
+			if (player.getAbilities().mayfly) {
+				flags |= 1 << 9;
+			}
 			if (player.getAbilities().flying) {
 				flags |= Proto.MC_FLYING;
 			}

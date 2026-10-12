@@ -104,6 +104,7 @@ namespace skycraft::proto
 		kMcDead = 1u << 5,
 		kMcSwimming = 1u << 6,
 		kMcFlying = 1u << 7,
+		kMcCanFly = 1u << 9, // WitchCraft extension: vanilla abilities.mayfly.
 		kMcInWater = 1u << 8, // WitchCraft extension: contact, not just sprint-swimming.
 	};
 

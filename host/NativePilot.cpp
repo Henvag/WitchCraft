@@ -1,4 +1,5 @@
 #include "NativePilot.h"
+#include "NativeCamera.h"
 #include "Link.h"
 #include "MotionTimeline.h"
 
@@ -36,6 +37,7 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
         if(GetEnvironmentVariableW(L"WITCHCRAFT_DIAGNOSTIC_JUMP",v,2)&&v[0]==L'1') return true;
         return GetEnvironmentVariableW(L"WITCHCRAFT_DIAGNOSTIC_MOVEMENT",v,2)&&v[0]==L'1'; }();
     if(!enabled) return;
+    PrepareCamera(reader,base,sample,log);
     static const bool playEnabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_PLAY",v,2)&&v[0]==L'1';}();
     static const bool jumpEnabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_DIAGNOSTIC_JUMP",v,2)&&v[0]==L'1';}();
     const auto command=ReadPilotCommand();

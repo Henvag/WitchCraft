@@ -15,18 +15,20 @@ and diagonal movement, standing and moving jumps, HUD/hotbar, inventory clicks,
 block placement, small block-platform traversal and F8 restoration of Geralt.
 Water now appears supported by sampled terrain.
 
-The latest Minecraft persistent-readback patch improved measured fresh-frame
-arrival from roughly 23 FPS to about 53-60 FPS in recent samples at 2560x1440
-with a 1280x720 HUD transfer. The user reports smoother rendering, with some
-remaining choppiness. Walking also pauses while collision patches stream.
-The next native build raises per-update sampling and delivery caps while
-retaining the one-millisecond ray-query budget and queue backpressure;
-its live effect has not yet been measured.
+Recent live tests confirm chat and game-mode commands, smoother camera/movement,
+and working inventory. Tick-history interpolation reduced the remaining dragging;
+small residual latency remains in the external overlay pipeline.
 
-The hidden Witcher camera anchor follows native ground height. Elytra flight,
-full airborne camera integration, scenery occlusion and NPC/combat integration
-remain unimplemented or partial. Larger falls and tall structures can still
-end the handoff. The adapter targets Witcher 3 DX12 executable 5.0.0.1048522
+The current build adds F5 first/third-person switching and vanilla creative flight
+(double-tap Space, Space up, Shift down). These features are built and covered by
+unit tests, but still require in-game verification. A verified custom-camera data
+hook changes translation before Witcher rebuilds its camera transform. Geralt's
+hidden anchor stays on native ground and returns with F8.
+
+Elytra, native lake/river water, scenery occlusion and NPC/combat integration remain
+unimplemented or partial. Terrain/wall sampling covers the ground vicinity, so
+high-altitude obstacles are incomplete. Survival falls and tall structures can
+still end the handoff. The adapter targets Witcher 3 DX12 executable 5.0.0.1048522
 and checks native signatures before enabling its hooks.
 
 See [play mode](docs/PLAY_MODE.md) for controls and limitations, and the

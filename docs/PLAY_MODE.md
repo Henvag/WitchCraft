@@ -8,7 +8,9 @@ control remains gated; the explicit play controller owns this mode.
 
 Controls: WASD movement, Space jump (release between jumps), E inventory,
 1-9/wheel hotbar, mouse inventory cursor/clicks or Minecraft block/item actions,
-Shift/Ctrl modifiers, Esc Minecraft screen/menu, F8 return to Geralt. Inventory
+Shift/Ctrl modifiers, T chat/commands, F5 first/third person, Esc Minecraft
+screen/menu, F8 return to Geralt. In creative, double-tap Space to toggle flight;
+hold Space to rise and Shift to descend. Inventory
 keeps the avatar hidden and stops movement keys. A virtual cursor avoids Witcher
 OS cursor recentering. Game callbacks queue input; only the overlay thread writes
 the shared input ring. Overflow releases input and ends play. F8 ends the session
@@ -393,3 +395,30 @@ GUI or death flags are applied immediately, and disconnect/PID change/expiry
 invalidate the cache. Logs count missed reads and coherent reuse. All 21 suites
 pass, including the recorded chat/read-race sequence and expiry/peer-change checks.
 The Minecraft JAR is unchanged for this correction; live verification is pending.
+
+## Creative flight and first-person camera build (2026-10-12)
+
+The user confirmed chat transitions and both game-mode commands after the bounded
+state-read cache fix. This build adds the mayfly ability as v11 flag bit 9 without
+changing packet sizes. Creative Space input remains held and preserves double-tap
+edges, allowing vanilla Minecraft to own flight. Survival retains its jump/fall
+guards. Flight requires the verified native camera hook; the altitude bound is
+256 metres above the hidden ground anchor. Existing horizontal follow/streaming
+bounds still apply. Elytra is not included.
+
+The CCustomCamera ICamera GetData slot is checked against its exact vtable and
+method prologue before installation. The wrapper calls the original first, then
+changes only returned translation (and first-person near clip). Witcher's camera
+director consumes that data and rebuilds its transform normally. First person
+uses Minecraft feet plus eye height; creative third person preserves Witcher's
+camera offset and adds Minecraft's elevation. Rotation remains under Witcher
+mouse control. F5 skips the front-facing perspective. First person permits an
+empty avatar export; Minecraft's transparent hand/HUD pass remains visible.
+
+Ownership requires active play, fresh commands, a healthy link, the current
+world/epoch/relocation, a hidden player, foreground focus, an unpaused game and
+the matching topmost camera. Returning with F8 stops the override, so subsequent
+camera reads use the original pose; no persistent camera position is written.
+Twenty-two test suites pass, including flight gating, held Space, double-tap
+edges, GUI release, F8 and finite camera conversion. Live camera/flight behavior
+still needs verification after installation.
