@@ -282,3 +282,12 @@ and camera delay. All 19 suites pass, including stale snapshot/teleport/flying
 rejection, newer-tick use and lead endpoint clamping. Perceived improvement and
 camera stability are not yet verified in-game. The captured positions remain
 local and are excluded from the repository.
+
+The user clarified that the trajectory capture began with jumps over placed
+blocks. Rechecking only the later portion (after 70 seconds), with central-difference
+windows entirely on ground, gave 279 moving grid samples: median horizontal feet
+error 0.110 m, 95th percentile 0.206 m. The estimated velocity delays remained
+20 ms for both stages on the 20 ms grid. These approximate grounded estimates
+support testing the follow update independently of the early jumping sequence.
+The fresh-snapshot/bounded-lead build is now installed; the comparison capture
+and subjective result are pending.
