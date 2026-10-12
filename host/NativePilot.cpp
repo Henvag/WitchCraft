@@ -118,7 +118,7 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
         const bool readable=reader.Read(sample->player+0xa0,actual);
         if(status.moves<=3||!moved) {char line[256]{};std::snprintf(line,sizeof(line),"native pilot: teleport returned=%d request=(%.3f,%.3f,%.3f) immediateReadable=%d immediate=(%.3f,%.3f,%.3f)",moved,destination[0],destination[1],destination[2],readable,actual[0],actual[1],actual[2]);log(line);}
         if(!moved) {fail("native pilot: engine rejected teleport request; stopped");return;}
-        motion.Begin(destination,GetTickCount64(),groundFollow);
+        motion.Begin(destination,GetTickCount64(),groundFollow,GroundSnapLimit(command));
     }
     PublishPilotStatus(status);
 }

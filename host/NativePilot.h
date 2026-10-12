@@ -27,6 +27,11 @@ inline void ResolvePilotFeet(const PilotCommand& command,std::int64_t now,
     }
 }
 enum class PilotAck { Idle, Waiting, Confirmed, TimedOut };
+inline double GroundSnapLimit(const PilotCommand& command) {
+    // Creative flight owns camera altitude independently. Native ground/water
+    // transitions can move the hidden anchor vertically without moving MC.
+    return command.cameraOwned&&(command.followState.flags&skycraft::proto::kMcFlying)?4.0:.5;
+}
 // Engine movement may become visible on a later observer callback. Permit only
 // one outstanding request and count it only after a subsequent position sample.
 class PilotMotion {
@@ -35,13 +40,16 @@ class PilotMotion {
     float target_[3]{};
     std::uint64_t started_=0;
     double minimumError_=0;
+    double groundSnapLimit_=.5;
 public:
     void Reset() { pending_=false; }
-    bool Begin(const float* target,std::uint64_t now,bool groundFollow=false) {
+    bool Begin(const float* target,std::uint64_t now,bool groundFollow=false,double groundSnapLimit=.5) {
         if(pending_) return false;
+        if(!std::isfinite(groundSnapLimit)||groundSnapLimit<.5||groundSnapLimit>4) return false;
         for(int i=0;i<3;++i) if(!std::isfinite(target[i])) return false;
         for(int i=0;i<3;++i) target_[i]=target[i];
-        started_=now;pending_=true;groundFollow_=groundFollow;minimumError_=std::numeric_limits<double>::infinity();return true;
+        started_=now;pending_=true;groundFollow_=groundFollow;groundSnapLimit_=groundSnapLimit;
+        minimumError_=std::numeric_limits<double>::infinity();return true;
     }
     double MinimumError() const {return minimumError_;}
     PilotAck Observe(const float* actual,std::uint64_t now) {
@@ -53,7 +61,7 @@ public:
             // Native axes X/Y are horizontal. Z is ground height, which may
             // legitimately change as the horizontal request crosses a slope.
             if(groundFollow_&&i==2) {
-                if(std::abs(delta)>.5) {pending_=false;return PilotAck::TimedOut;}
+                if(std::abs(delta)>groundSnapLimit_) {pending_=false;return PilotAck::TimedOut;}
             } else error+=delta*delta;
         }
         minimumError_=std::fmin(minimumError_,std::sqrt(error));

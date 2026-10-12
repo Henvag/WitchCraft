@@ -449,3 +449,21 @@ server and updates abilities, preserving creative mode and its flight permission
 A regression covers saved flight, teleport issuance, grounding and active play.
 Camera-stage validation remains installed; live camera-follow verification is
 still pending because this startup issue prevented takeover.
+
+### Live camera/flight pass and water-edge acknowledgement
+
+The user confirmed first person and camera following during creative flight,
+with some glitchiness. Camera logs confirmed overrides in modes 1 and 0 at
+roughly 180 GetData calls/second and flight heights up to about 16 metres in the
+sampled entries. Flying above water later restored Geralt. The native trace
+identified a ground-height acknowledgement rejection: the hidden anchor snapped
+from requested Z 65.292 to Z 66.013 while X/Y matched the requested target.
+
+During camera-owned creative flight, ground-follow acknowledgements now accept
+native vertical changes up to four metres. The default remains 0.5 metres for
+other grounded follow. Horizontal confirmation remains within 0.05 metres with
+a 250 ms deadline, and larger/non-finite changes still stop. The recorded water
+coordinates are covered by a regression, alongside horizontal timeout and the
+upper height bound. This fixes the observed rejection in tests; crossing the
+water edge still requires live verification. Reported camera glitchiness is
+being clarified separately rather than assumed resolved by this change.

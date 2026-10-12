@@ -74,4 +74,17 @@ int main() {
     if(!motion.Begin(slopeTarget,2200,true)||motion.Observe(slopeActual,2216)!=PilotAck::Waiting) return 29;
     motion.Reset();slopeActual[0]=100.3f;slopeActual[2]=10.51f;
     if(!motion.Begin(slopeTarget,2300,true)||motion.Observe(slopeActual,2316)!=PilotAck::TimedOut) return 30;
+    witchcraft::PilotCommand flight;
+    flight.followState.flags=skycraft::proto::kMcFlying;
+    if(GroundSnapLimit(flight)!=.5) return 41;
+    flight.cameraOwned=true;if(GroundSnapLimit(flight)!=4) return 42;
+    float waterTarget[]{-528.176f,-1187.978f,65.292f},waterActual[]{-528.176f,-1187.978f,66.013f};
+    if(!motion.Begin(waterTarget,2400,true,GroundSnapLimit(flight))||
+        motion.Observe(waterActual,2416)!=PilotAck::Confirmed) return 43;
+    waterActual[0]-=.2f;
+    if(!motion.Begin(waterTarget,2500,true,4)||motion.Observe(waterActual,2516)!=PilotAck::Waiting||
+        motion.Observe(waterActual,2751)!=PilotAck::TimedOut) return 44; // Horizontal confirmation remains strict.
+    waterActual[0]=waterTarget[0];waterActual[2]=waterTarget[2]+4.01f;
+    if(!motion.Begin(waterTarget,2800,true,4)||motion.Observe(waterActual,2816)!=PilotAck::TimedOut) return 45;
+    if(motion.Begin(waterTarget,2900,true,5)) return 46;
 }
