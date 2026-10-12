@@ -35,14 +35,19 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
             if(coverage) waitingCoverage_=false;
             if(waitingCoverage_&&now-coverageAt_>5000) Stop("terrain streaming did not restore coverage within five seconds");
             const bool gui=(mc->flags&kMcScreenOpen)!=0,ground=(mc->flags&kMcOnGround)!=0;
+            const bool wet=(mc->flags&(kMcInWater|kMcSwimming))!=0;
             nativeGround_=game->feet[1];
             if(!std::isfinite(mc->curX)||!std::isfinite(mc->curY)||!std::isfinite(mc->curZ)) Stop("Minecraft reported a non-finite position");
             // Minecraft also owns support on player-placed blocks. The hidden
             // Witcher anchor stays on its terrain underneath small platforms.
             const double elevation=mc->curY-nativeGround_;
+            if(wet) {
+                jumping_=tookOff_=air_=false;
+                if(elevation<-.6||elevation>3.7) Stop("water outside supported camera height range");
+            }
             if(ground&&(elevation<-.6||elevation>2.1)) Stop("Minecraft support outside grounded camera range (-0.6 to +2.1 m)");
             const bool space=(input&16)&&inputReady&&hidden&&!gui;
-            if(space&&!spaceDown_&&ground&&!jumping_&&!catchingUp_&&!waitingCoverage_) {
+            if(space&&!spaceDown_&&ground&&!wet&&!jumping_&&!catchingUp_&&!waitingCoverage_) {
                 jumping_=true;tookOff_=false;jumpAt_=now;jumpGround_=mc->curY;peak_=0;
                 nativeGround_=game->feet[1];
             }
@@ -58,7 +63,7 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
                 else if(now-jumpAt_>750) Stop("jump takeoff timed out");
                 if(jumping_&&now-jumpAt_>3000) Stop("jump landing timed out");
             }
-            if(active_&&!ground&&!jumping_) {
+            if(active_&&!ground&&!jumping_&&!wet) {
                 if(!air_) {air_=true;airAt_=now;}
                 // Allow stepping off a small Minecraft platform to the sampled
                 // terrain, without enabling unbounded falls or flight.
@@ -76,8 +81,9 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
             if(active_) {
                 started_|=inputReady&&hidden;
                 keys_=inputReady&&hidden&&!gui&&!catchingUp_&&!waitingCoverage_?static_cast<std::uint8_t>(input&15):0;
+                if(wet&&inputReady&&hidden&&!gui&&!catchingUp_&&!waitingCoverage_) keys_|=input&16;
                 if(!gui&&jumping_&&!tookOff_&&now-jumpAt_<100) keys_|=16;
-                reason_=waitingCoverage_?"waiting for terrain stream; Minecraft remains active":catchingUp_?"briefly releasing movement while native anchor catches up":gui?"Minecraft inventory/menu active":jumping_?"walking/jumping; grounded native camera anchor":"Minecraft play active; F8 returns Geralt";
+                reason_=waitingCoverage_?"waiting for terrain stream; Minecraft remains active":catchingUp_?"briefly releasing movement while native anchor catches up":gui?"Minecraft inventory/menu active":wet?"Minecraft water movement; grounded native camera anchor":jumping_?"walking/jumping; grounded native camera anchor":"Minecraft play active; F8 returns Geralt";
             }
         }
     }

@@ -16,6 +16,38 @@ bool play=false,gui=false,mouseOverflow=false;
 int viewportW=0,viewportH=0,cursorX=0,cursorY=0;
 std::array<bool,3> mouseDown{},mouseOwned{};
 std::vector<skycraft::proto::InputEvent> mouseEvents;
+unsigned repeatKey=0;
+ULONGLONG repeatAt=0;
+void Append(ManualInput& result,const skycraft::proto::InputEvent& event) {
+    if(result.eventCount<result.events.size()) result.events[result.eventCount++]=event;
+    else result.overflow=true;
+}
+bool Repeatable(unsigned vk) {
+    return (vk>='A'&&vk<='Z')||(vk>='0'&&vk<='9')||vk==8||vk==0x20||
+        (vk>=0x25&&vk<=0x28)||vk==0x2e||(vk>=0xba&&vk<=0xde);
+}
+void Text(unsigned vk,ManualInput& result,const std::array<bool,256>& down,unsigned modifiers) {
+    if(!gui||(modifiers&2)) return;
+    BYTE state[256]{};
+    for(unsigned i=0;i<256;++i) state[i]=down[i]?0x80:0;
+    state[VK_CAPITAL]|=::GetKeyState(VK_CAPITAL)&1;
+    state[VK_SHIFT]=(modifiers&1)?0x80:0;
+    state[VK_LSHIFT]=state[VK_RSHIFT]=state[VK_SHIFT];
+    state[VK_CONTROL]=state[VK_LCONTROL]=state[VK_RCONTROL]=0;
+    const auto thread=::GetWindowThreadProcessId(::GetForegroundWindow(),nullptr);
+    const auto layout=::GetKeyboardLayout(thread);
+    wchar_t text[8]{};
+    const int count=::ToUnicodeEx(vk,::MapVirtualKeyExW(vk,MAPVK_VK_TO_VSC,layout),
+        state,text,8,4,layout); // Do not change the game's dead-key state.
+    for(int i=0;i<count&&i<8;++i) {
+        std::uint32_t value=text[i];
+        if(value>=0xd800&&value<=0xdbff&&i+1<count&&text[i+1]>=0xdc00&&text[i+1]<=0xdfff) {
+            value=0x10000+((value-0xd800)<<10)+(text[++i]-0xdc00);
+        }
+        if(value>=32&&value!=127&&!(value>=0xd800&&value<=0xdfff))
+            Append(result,{skycraft::proto::kInText,0,static_cast<int>(value),0,0});
+    }
+}
 void Queue(skycraft::proto::InputType type,unsigned code,int a,int b=0) {
     if(mouseEvents.size()<128) mouseEvents.push_back({static_cast<std::uint16_t>(type),static_cast<std::uint16_t>(code),a,b,0});
     else mouseOverflow=true;
@@ -86,6 +118,7 @@ ManualInput PollManualInput(bool requested,bool playMode,bool screen,int width,i
     keys.playMode=playMode;play=playMode;
     if(playMode&&screen&&!gui) {cursorX=width/2;cursorY=height/2;}
     gui=playMode&&screen;viewportW=width;viewportH=height;
+    keys.guiMode=gui;
     if(!requested||!installed||!focus) {enabled=false;keys.Disable();}
     else if(!enabled&&!held) {keys.Disable();enabled=true;}
     refreshed=now;
@@ -99,12 +132,25 @@ ManualInput PollManualInput(bool requested,bool playMode,bool screen,int width,i
         for(unsigned i=0;i<3;++i) MouseButton(i,(::GetAsyncKeyState(buttons[i])&0x8000)!=0,true);
         for(unsigned i=0;i<keys.uiCount;++i) {
             const auto event=keys.uiEvents[i];
-            result.events[result.eventCount++]={skycraft::proto::kInKey,static_cast<std::uint16_t>(event&0x7fff),(event&0x8000)?1:0,0,0};
+            Append(result,{skycraft::proto::kInKey,static_cast<std::uint16_t>(event&0x7fff),(event&0x8000)?1:0,0,0});
+            const auto vk=keys.uiVirtualKeys[i];
+            if(gui&&(event&0x8000)&&Repeatable(vk)) {
+                Text(vk,result,current,keys.uiModifiers[i]);repeatKey=vk;repeatAt=now+500;
+            }
         }
-        for(const auto& event:mouseEvents) result.events[result.eventCount++]=event;
-        result.overflow=keys.overflow||mouseOverflow;
+        if(!gui||!repeatKey||!current[repeatKey]) repeatKey=0;
+        else if(now>=repeatAt) {
+            Append(result,{skycraft::proto::kInKey,
+                static_cast<std::uint16_t>(ManualKeys::UiCode(repeatKey)),1,0,0});
+            const unsigned modifiers=(current[VK_SHIFT]||current[VK_LSHIFT]||current[VK_RSHIFT]?1u:0u)|
+                (current[VK_CONTROL]||current[VK_LCONTROL]||current[VK_RCONTROL]?2u:0u);
+            Text(repeatKey,result,current,modifiers);repeatAt=now+33;
+        }
+        for(const auto& event:mouseEvents) Append(result,event);
+        result.overflow|=keys.overflow||mouseOverflow;
         result.gui=gui;result.cursorX=cursorX;result.cursorY=cursorY;
     }
+    if(!enabled) repeatKey=0;
     keys.uiCount=0;keys.overflow=false;mouseEvents.clear();mouseOverflow=false;
     result.ready=enabled;result.forward=enabled&&keys.forward;result.stop=enabled&&keys.stop;
     result.movement=enabled?keys.movement:0;

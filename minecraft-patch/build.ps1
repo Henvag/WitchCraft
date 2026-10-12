@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force -Path $classes | Out-Null
 $dependencies=@(Get-ChildItem -LiteralPath (Join-Path $prismRoot 'libraries') -Filter '*.jar' -Recurse -File | Where-Object {$_.FullName -notmatch 'natives-windows-(x86|arm64)'} | ForEach-Object {$_.FullName})
 $classpath=($dependencies+$BaseMod)-join ';'
 $arguments=@('--release','25','-classpath',('"'+$classpath.Replace('\','/')+'"'),'-d',('"'+$classes.Replace('\','/')+'"'))
-foreach($name in @('FrameExporter','PersistentOverlayReadback')) {
+foreach($name in @('FrameExporter','PersistentOverlayReadback','SkyClient')) {
     $source=Join-Path $PSScriptRoot "src\dev\skycraft\client\$name.java"
     $arguments+=('"'+$source.Replace('\','/')+'"')
 }
@@ -29,7 +29,9 @@ $new=[IO.Compression.ZipFile]::OpenRead($output)
 try {
     $changed=@('dev/skycraft/client/FrameExporter.class','dev/skycraft/client/FrameExporter$Staging.class')
     foreach($entry in $old.Entries) {
-        if($entry.FullName.EndsWith('/') -or $entry.FullName -in $changed){continue}
+        if($entry.FullName.EndsWith('/') -or $entry.FullName -in $changed -or
+            $entry.FullName -eq 'dev/skycraft/client/SkyClient.class' -or
+            $entry.FullName.StartsWith('dev/skycraft/client/SkyClient$')){continue}
         $other=$new.GetEntry($entry.FullName)
         if(!$other){throw "Missing original entry: $($entry.FullName)"}
         $a=$entry.Open()

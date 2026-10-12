@@ -347,3 +347,39 @@ not evidence that overall input-to-screen latency is solved. Logs now report
 rendered and held-moving frames plus buffer duration. All 20 test suites pass,
 including late-tick continuity, out-of-order snapshots, stopped motion, teleport,
 GUI/invalid input and skipped-tick bounds. Live smoothness remains unverified.
+
+The installed test was reported smoother, with slight remaining drag. Recent
+five-second log windows showed 0-4 held-moving frames per roughly 300 rendered
+frames, with buffers around 23-29 ms. These counts have a different denominator
+from the earlier tick-age probe, so they are not a direct percentage comparison.
+The session later returned on `fall outside grounded camera range`, after 3,469
+confirmed native follow moves; this limitation still applies outside water.
+
+## Chat, commands and shallow Minecraft water
+
+The next build forwards T to open Minecraft chat, GUI keys for editing/submitting
+commands, and Unicode text using the foreground keyboard layout. Shift is captured
+at keypress, text precedes subsequent key events, and held typing/editing keys
+repeat. GUI key releases remain matched if the screen closes while a key is held.
+Event queues stay bounded and focus loss/F8 retain release-all behavior.
+
+Use T, type `/gamemode creative` or `/gamemode survival`, then Enter. The upstream
+mirror-world creation settings enable commands; an existing save may have different
+permissions, which must be checked in-game. Creative flight is still unsupported:
+switching game mode does not implement flying. First-person switching remains
+disabled until Witcher's native view and Minecraft's perspective can switch together.
+
+The patched SkyClient now reports an additional v11 flag (bit 8, `kMcInWater`),
+without changing the packet layout. It distinguishes floating in water from falling;
+the existing `kMcSwimming` flag reports sprint-swimming. Within the supported shallow
+height range, PlaySession permits sustained Space for ascent and does not run its
+ordinary fall timer. Leaving water restores fall checks. Minecraft's existing normal
+avatar exporter supplies the swimming pose; its separate ragdoll capture is the only
+path that forces a standing pose.
+
+This supports testing player-placed Minecraft water. Witcher's lakes/rivers are not
+yet published through WaterGrid and therefore do not trigger Minecraft swimming.
+Deep-water camera following, flight, first-person view and native combat integration
+remain separate features. All 20 native suites pass, and the patched Java build
+preserves unrelated JAR entries byte-for-byte. Live chat/command and swimming checks
+are pending.

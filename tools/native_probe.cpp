@@ -173,7 +173,8 @@ public:
                     text.find("Collision") == std::string::npos && text.find("Gravity") == std::string::npos &&
                     text.find("Movement") == std::string::npos && text.find("Ground") == std::string::npos &&
                     text.find("Snap") == std::string::npos && text.find("Physical") == std::string::npos &&
-                    text.find("Kinematic") == std::string::npos) continue;
+                    text.find("Kinematic") == std::string::npos && text.find("Water") == std::string::npos &&
+                    text.find("Swim") == std::string::npos) continue;
                 std::uint32_t flags = 0; read(fn + 0x18, flags);
                 std::uint32_t nativeIndex = 0; read(fn + 0xe0, nativeIndex);
                 if (flags & 1) printf("   native %s rva=%llx\n", text.c_str(),

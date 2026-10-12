@@ -41,4 +41,21 @@ int main() {
     for(int i=0;i<100;++i) play.Event('E',i%2,true,true,false,false);
     if(!play.overflow||play.uiCount!=64) return 32;
     play.Disable();if(play.uiCount||play.overflow) return 33;
+    ManualKeys chat;chat.playMode=true;
+    chat.Event('T',true,true,true,false,false);
+    if(chat.uiCount!=1||chat.uiEvents[0]!=(0x8000|23)) return 34;
+    chat.Event('W',true,true,true,false,false);
+    if(chat.uiCount!=1) return 35; // Gameplay movement remains owned by PlaySession.
+    chat.Event('W',false,true,true,false,false);
+    chat.guiMode=true;
+    chat.Event('W',true,true,true,false,false);
+    chat.Event(0x0d,true,true,true,false,false);
+    if(chat.uiEvents[1]!=(0x8000|26)||chat.uiEvents[2]!=(0x8000|40)) return 36;
+    chat.guiMode=false;chat.Event('W',false,true,true,false,false);
+    if(chat.uiCount!=4||chat.uiEvents[3]!=26) return 37; // Matched release after chat closes.
+    if(ManualKeys::UiCode(8)!=42||ManualKeys::UiCode(0x25)!=80||ManualKeys::UiCode(0xbf)!=56) return 38;
+    chat.guiMode=true;chat.Event(0xa0,true,true,true,false,false);
+    chat.Event('7',true,true,true,false,false);const auto shifted=chat.uiCount-1;
+    chat.Event(0xa0,false,true,true,false,false);
+    if(chat.uiModifiers[shifted]!=1) return 39; // Shift at keypress survives release before polling.
 }

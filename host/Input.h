@@ -13,7 +13,7 @@ namespace witchcraft
         std::uint32_t wSeen=0,wBlocked=0,wPassed=0,stopSeen=0;
         std::uint32_t hookError=0;
         std::uint32_t rawSeen=0,rawBlocked=0,asyncBlocked=0;
-        std::array<skycraft::proto::InputEvent,192> events{};
+        std::array<skycraft::proto::InputEvent,384> events{};
         unsigned eventCount=0;
         bool overflow=false,gui=false;
         int cursorX=0,cursorY=0;

@@ -21,6 +21,14 @@ struct Fixture {
     void Move(double x) {game.feet[0]=mc.x=mc.curX=x;}
 };
 int main() {
+    Fixture water;water.Start();water.mc.flags&=~kMcOnGround;water.mc.flags|=kMcInWater;
+    water.mc.curY=10.3;water.Update(2700,17);water.Update(4700,17);
+    REQUIRE(water.play.Active()&&water.play.Keys()==17);
+    water.mc.flags|=kMcSwimming;water.Update(4800,1);REQUIRE(water.play.Active());
+    water.mc.flags&=~(kMcInWater|kMcSwimming);water.Update(4900);water.Update(6501);
+    REQUIRE(!water.play.Active()); // Leaving water restores ordinary fall bounds.
+    Fixture deep;deep.Start();deep.mc.flags|=kMcInWater;deep.mc.curY=9;
+    deep.Update(2700);REQUIRE(!deep.play.Active());
     Fixture f;f.Start();f.Update(2700,9);REQUIRE(f.play.Keys()==9);
     f.Move(3.5);f.Update(2800,9);REQUIRE(f.play.Active()); // No former 3 m diagnostic boundary.
     f.Update(30000,1);REQUIRE(f.play.Active()); // No 20-second diagnostic return.

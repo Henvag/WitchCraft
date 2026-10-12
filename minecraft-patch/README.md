@@ -7,6 +7,9 @@ FrameExporter.java is from chasmlol/SkyCraft commit
 bfcaf178524b92c2cdeb88e4ce0f13ef9ded6f32, with one dispatch added.
 Upstream: https://github.com/chasmlol/SkyCraft
 Its MIT license is preserved in LICENSE-SkyCraft.
+SkyClient.java is from the same commit, with WitchCraft's additional in-water flag
+(bit 8) so floating and swimming do not use the ordinary fall timeout. The shared
+v11 layout remains unchanged. Its normal avatar export already includes swimming.
 
 PersistentOverlayReadback uses three coherent, persistently mapped OpenGL pixel
 pack buffers. It polls GPU fences without waiting and publishes the newest ready
@@ -23,6 +26,9 @@ after installation. It compiles against the local Prism libraries and verifies
 every unrelated original JAR entry remains byte-identical. The result is
 dist/minecraft/skycraft-0.1.2.jar. Do not install a second copy beside the original;
 back up and replace the instance's skycraft-0.1.2.jar while Minecraft is stopped.
+Only FrameExporter and SkyClient upstream class entries are allowed to change;
+PersistentOverlayReadback is added. Chat text is forwarded by the native host using
+the existing InputBridge, without replacing that class.
 
 PersistentReadbackSmoke.java tested the same persistent-map/fence/texture-copy
 operations in independent hidden OpenGL 4.5 and 3.3 contexts on the GTX 1080 Ti: twelve
