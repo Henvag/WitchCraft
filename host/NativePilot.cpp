@@ -1,5 +1,6 @@
 #include "NativePilot.h"
 #include "Link.h"
+#include "MotionTimeline.h"
 
 #include <Windows.h>
 #include <cstdio>
@@ -86,6 +87,11 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     // along the known horizontal tick segment to offset that camera delay.
     ResolvePilotFeet(followCommand,followNow.QuadPart,followFrequency.QuadPart,target,
         playEnabled?1000.0/60:0);
+    if(playEnabled&&command.groundFollow&&command.interpolateFollow) {
+        const auto pose=RenderMotionState(followCommand.followState,followNow.QuadPart,
+            followFrequency.QuadPart,1000.0/60);
+        target[0]=pose.x;target[2]=pose.z;
+    }
     const bool groundFollow=playEnabled&&command.groundFollow;
     if(groundFollow) target[1]=sample->feet[2]; // Keep engine ground ownership.
     if(!(playEnabled?PilotFollowPosition(sample->feet,target,destination):PilotPosition(sample->feet,target,destination))) {

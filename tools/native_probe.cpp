@@ -18,7 +18,7 @@
 #include <cstdlib>
 #include "../host/RenderTiming.h"
 
-int SampleFollow(const witchcraft::native::Reader& reader,unsigned seconds,const char* path) {
+int SampleFollow(const witchcraft::native::Reader& reader,std::uintptr_t base,unsigned seconds,const char* path) {
     using namespace skycraft::proto;
     if(!seconds||seconds>120) return 6;
     auto mapping=OpenFileMappingW(FILE_MAP_READ,FALSE,kMappingName);
@@ -28,7 +28,7 @@ int SampleFollow(const witchcraft::native::Reader& reader,unsigned seconds,const
     if(header.magic!=kMagic||header.version!=kVersion) {UnmapViewOfFile(data);CloseHandle(mapping);return 6;}
     auto* file=std::fopen(path,"w");
     if(!file) {UnmapViewOfFile(data);CloseHandle(mapping);return 6;}
-    std::fprintf(file,"seconds,paused,skyFlags,mcFlags,mcFrame,mcTickAgeMs,feetX,feetY,feetZ,cameraX,cameraY,cameraZ,forwardX,forwardY,forwardZ,mcX,mcY,mcZ,mcCurX,mcCurY,mcCurZ\n");
+    std::fprintf(file,"seconds,paused,skyFlags,mcFlags,mcFrame,mcTickAgeMs,feetX,feetY,feetZ,cameraX,cameraY,cameraZ,forwardX,forwardY,forwardZ,mcX,mcY,mcZ,mcCurX,mcCurY,mcCurZ,cameraPivotX,cameraPivotY,cameraPivotZ,cameraOffsetX,cameraOffsetY,cameraOffsetZ,cameraStagesValid\n");
     LARGE_INTEGER start{},clock{},frequency{};QueryPerformanceFrequency(&frequency);QueryPerformanceCounter(&start);
     unsigned rows=0;
     for(;;) {
@@ -53,11 +53,30 @@ int SampleFollow(const witchcraft::native::Reader& reader,unsigned seconds,const
             }
             if(haveMc&&haveSky) {
                 const auto visual=witchcraft::RenderMcState(mc,clock.QuadPart,frequency.QuadPart);
-                std::fprintf(file,"%.6f,%u,%u,%u,%llu,%.3f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
+                float pivot[4]{},offset[4]{};unsigned count=0;bool stagesValid=false;
+                if(reader.Read(sample.cameraObject+0x60,count)&&count>0&&count<=64) {
+                    const auto list=reader.Pointer(sample.cameraObject+0x58);
+                    const auto record=list?list+(count-1)*40ull:0;
+                    const auto interface=reader.Pointer(record);
+                    const auto handle=reader.Pointer(record?record+8:0);
+                    const auto camera=reader.Pointer(handle?handle+8:0);
+                    // This probe never invokes engine methods. Match both ICamera
+                    // entry points before interpreting CCustomCamera fields.
+                    const auto vt=reader.Pointer(interface);
+                    stagesValid=camera&&interface==camera+0x170&&
+                        vt==base+0x3810198&&reader.Pointer(vt+8)==base+0x1e0f710&&
+                        reader.Pointer(vt+0x10)==base+0x1e0f290&&
+                        reader.Read(camera+0x1d0,pivot)&&reader.Read(camera+0x230,offset);
+                    for(int i=0;i<4&&stagesValid;++i)
+                        stagesValid=std::isfinite(pivot[i])&&std::isfinite(offset[i])&&
+                            std::abs(pivot[i])<=1000000&&std::abs(offset[i])<=100;
+                }
+                std::fprintf(file,"%.6f,%u,%u,%u,%llu,%.3f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%u\n",
                     elapsed,sample.paused?1u:0u,sky.flags,mc.flags,static_cast<unsigned long long>(mc.frameCounter),
                     (clock.QuadPart-mc.tickQpc)*1000.0/frequency.QuadPart,
                     sample.feet[0],sample.feet[2],-sample.feet[1],sample.camera[0],sample.camera[2],-sample.camera[1],
-                    sample.forward[0],sample.forward[2],-sample.forward[1],visual.x,visual.y,visual.z,mc.curX,mc.curY,mc.curZ);
+                    sample.forward[0],sample.forward[2],-sample.forward[1],visual.x,visual.y,visual.z,mc.curX,mc.curY,mc.curZ,
+                    pivot[0],pivot[2],-pivot[1],offset[0],offset[2],-offset[1],stagesValid?1u:0u);
                 ++rows;
             }
         }
@@ -134,7 +153,7 @@ public:
         buffer[127] = 0;
         return buffer;
     }
-    void functions(std::uintptr_t object) const {
+    void functions(std::uintptr_t object,bool all=false) const {
         auto klass = pointer(object + 0x18);
         for (int depth = 0; klass && depth < 16; ++depth) {
             std::uint32_t id = 0, count = 0;
@@ -146,7 +165,7 @@ public:
                 auto fn = pointer(list + i * 8ull);
                 read(fn + 0x10, id);
                 const auto text = name(id);
-                if (text.find("WorldPosition") == std::string::npos && text.find("Teleport") == std::string::npos &&
+                if (!all&&text.find("WorldPosition") == std::string::npos && text.find("Teleport") == std::string::npos &&
                     text.find("CameraPosition") == std::string::npos && text.find("CameraDirection") == std::string::npos &&
                     text.find("Fov") == std::string::npos && text.find("Paused") == std::string::npos &&
                     text.find("World") == std::string::npos && text.find("HideInGame") == std::string::npos &&
@@ -221,7 +240,7 @@ int main(int argc, char** argv) {
         printf("Native adapter snapshot VERIFIED; original code matches=%u (read-only)\n", codeMatches ? 1u : 0u);
     }
     if(capture) {
-        const int result=SampleFollow(layout,static_cast<unsigned>(std::strtoul(argv[2],nullptr,10)),argv[3]);
+        const int result=SampleFollow(layout,reader.base,static_cast<unsigned>(std::strtoul(argv[2],nullptr,10)),argv[3]);
         CloseHandle(reader.process);return result;
     }
     // Exact GetGlobal instruction signature from the matching installed map.
@@ -247,7 +266,7 @@ int main(int argc, char** argv) {
         if (object) printf("global[%d] object=%llx type=%s vtable=%llx\n", i,
             static_cast<unsigned long long>(object), reader.type(object).c_str(),
             static_cast<unsigned long long>(reader.pointer(object) - reader.base));
-        if (object && i < 3) reader.functions(object);
+        if (object && i < 3) reader.functions(object,i==2);
         if (i == 0) {
             auto world = reader.pointer(reader.pointer(object + 0xf0) + 8);
             printf("WORLD: %llx %s\n", static_cast<unsigned long long>(world), reader.type(world).c_str());
@@ -315,6 +334,32 @@ int main(int argc, char** argv) {
             }
         }
         if (i == 2) {
+            unsigned cameraCount=0;reader.read(object+0x60,cameraCount);
+            const auto cameraList=reader.pointer(object+0x58);
+            printf("CAMERA STACK count=%u list=%llx\n",cameraCount,static_cast<unsigned long long>(cameraList));
+            if(cameraList&&cameraCount>0&&cameraCount<=64) {
+                const auto record=cameraList+(cameraCount-1)*40ull;
+                const auto cameraInterface=reader.pointer(record);
+                const auto cameraHandle=reader.pointer(record+8);
+                const auto cameraObject=reader.pointer(cameraHandle+8);
+                printf("TOP CAMERA interface=%llx type=%s object=%llx type=%s\n",
+                    static_cast<unsigned long long>(cameraInterface),reader.type(cameraInterface).c_str(),
+                    static_cast<unsigned long long>(cameraObject),reader.type(cameraObject).c_str());
+                if(cameraObject) reader.functions(cameraObject,true);
+                const auto vt=reader.pointer(cameraInterface);
+                if(vt>=reader.base&&vt<reader.base+nt.OptionalHeader.SizeOfImage) {
+                    printf("TOP CAMERA interfaceVtableRva=%llx\n",static_cast<unsigned long long>(vt-reader.base));
+                    for(unsigned slot=0;slot<0x40;slot+=8)
+                        printf(" camera interface slot=%x methodRva=%llx\n",slot,
+                            static_cast<unsigned long long>(reader.pointer(vt+slot)-reader.base));
+                }
+                float cameraPosition[4]{};reader.read(cameraObject+0x1d0,cameraPosition);
+                printf("TOP CAMERA world position=(%.5f,%.5f,%.5f,%.5f)\n",
+                    cameraPosition[0],cameraPosition[1],cameraPosition[2],cameraPosition[3]);
+                float offset[4]{};reader.read(cameraObject+0x230,offset);
+                printf("TOP CAMERA world offset=(%.5f,%.5f,%.5f,%.5f)\n",
+                    offset[0],offset[1],offset[2],offset[3]);
+            }
             float position[4]{}, direction[3]{}, fov = 0;
             reader.read(object + 0x70, position);
             reader.read(object + 0x790, direction);

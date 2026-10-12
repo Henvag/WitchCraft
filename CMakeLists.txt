@@ -35,6 +35,7 @@ add_library(dinput8 SHARED
 	host/Session.cpp
 	host/NativeAdapter.cpp
 	host/NativePilot.cpp
+	host/MotionTimeline.cpp
 	host/NativeCollision.cpp
 	host/Terrain.cpp
 	host/Walls.cpp
@@ -67,6 +68,12 @@ if(MINGW)
 endif()
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(witchcraft_motion_timeline_tests tests/MotionTimelineTests.cpp)
+    target_include_directories(witchcraft_motion_timeline_tests PRIVATE host protocol)
+    if(MINGW)
+        target_link_options(witchcraft_motion_timeline_tests PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+    add_test(NAME motion_timeline COMMAND witchcraft_motion_timeline_tests)
     add_executable(witchcraft_session_tests tests/SessionTests.cpp host/Session.cpp)
     target_include_directories(witchcraft_session_tests PRIVATE host protocol)
     if(MINGW)

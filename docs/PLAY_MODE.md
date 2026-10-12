@@ -245,8 +245,9 @@ These results do not establish whether the remaining delay is camera easing,
 render presentation or input/physics latency.
 
 The native probe can now capture the native actor, camera, view direction,
-Minecraft tick timestamp and interpolated/raw Minecraft positions at about
-120 samples per second. It opens the game with read/query permissions only,
+Minecraft tick timestamp and interpolated/raw Minecraft positions. It requests
+an 8 ms sampling interval; observed Windows scheduling gives about 60 samples
+per second. It opens the game with read/query permissions only,
 checks its executable fingerprint/signatures and leaves the shared mapping
 read-only. Capture duration is bounded to 120 seconds and can wait through the
 main menu until a valid player appears. Paused and Minecraft-state flags are
@@ -289,5 +290,60 @@ windows entirely on ground, gave 279 moving grid samples: median horizontal feet
 error 0.110 m, 95th percentile 0.206 m. The estimated velocity delays remained
 20 ms for both stages on the 20 ms grid. These approximate grounded estimates
 support testing the follow update independently of the early jumping sequence.
-The fresh-snapshot/bounded-lead build is now installed; the comparison capture
-and subjective result are pending.
+The fresh-snapshot/bounded-lead build's repeat capture gave 2,961 active samples
+over 46.2 seconds, including 444 grounded moving grid samples. Median horizontal
+feet error fell to 0.0242 m and the 95th percentile to 0.0724 m. The fitted
+Minecraft-to-native delay was zero at the analysis's 20 ms resolution; the
+native-to-camera estimate remained 20 ms. The user reported slightly less drag,
+but it remains perceptible. Zero fitted delay does not establish zero real latency.
+
+## Remaining camera integration investigation
+
+SkyCraft's `skse/src/Game.cpp` pins Minecraft's camera after Skyrim's native camera
+update and propagates the transform to its render camera. WitchCraft currently
+uses Witcher's native camera framing and presents Minecraft through a separate
+layered window. Camera-stage lag and presentation latency remain distinct possible
+contributors; the trajectory estimates do not prove either is the whole cause.
+
+Read-only inspection of this exact executable found the active `CCustomCamera`
+interface at object + 0x170, vtable RVA 0x3810198. Slot 0x08 (RVA 0x1e0f710)
+adjusts `this` by -0x170 and delegates to the native update with its third argument
+zero. Slot 0x10 (RVA 0x1e0f290) produces camera data; its position override is the
+sum of object + 0x1d0 and object + 0x230. That sum differs from the camera director's
+final position at +0x70 in the paused live sample, so changing the script-facing
+camera position alone is not yet a verified final-camera solution.
+
+`--sample-follow` now also records these intermediate pivot/offset positions,
+guarded by exact interface and method identities. `tools/analyze_camera_stages.py`
+compares their horizontal velocity delays without requiring active Minecraft
+takeover. Use fixed view direction, clear ground and repeated starts/stops; combat,
+turning and jumps can confound the fit. No camera pointer is replaced, no engine
+method is invoked, and no camera memory is written by this probe. The first stage
+recording was interrupted by a drowner attack and is excluded from conclusions.
+
+The clean repeat captured valid intermediate camera fields. Its fixed-view
+velocity fits selected zero delay at 10 ms resolution across the camera stages
+during normal Geralt walking. Residual velocity error was appreciable, so this
+does not establish perfect camera timing or directly measure Minecraft takeover.
+There is not enough evidence to justify writing to the camera fields yet.
+
+## Buffered physics-tick rendering
+
+The earlier active Minecraft comparison contained 680 of 2,961 samples (23.0%)
+with tick age above 50 ms. The previous renderer clamps interpolation to the
+latest known tick endpoint, so those late arrivals can hold a moving pose even
+when frame delivery is near 60 Hz. This is a separate issue from native feet lag.
+
+The new shared motion timeline keeps eight known tick segments, filters small
+timestamp jitter, and adapts a 4-30 ms rendering buffer from recent arrival timing
+(initially 20 ms), following SkyCraft's approach. Avatar rendering and native
+horizontal follow consume the same history. Native follow retains the bounded
+one-frame lead; neither path extrapolates beyond known endpoints. Old snapshots
+from the other thread cannot rewind the history. GUI transitions, relocation and
+invalid data reset it. Ground-height ownership and F8 restoration are unchanged.
+
+The buffer trades a small amount of latency for continuous interpolation; it is
+not evidence that overall input-to-screen latency is solved. Logs now report
+rendered and held-moving frames plus buffer duration. All 20 test suites pass,
+including late-tick continuity, out-of-order snapshots, stopped motion, teleport,
+GUI/invalid input and skipped-tick bounds. Live smoothness remains unverified.

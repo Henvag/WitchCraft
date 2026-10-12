@@ -6,6 +6,7 @@
 #include "NativePilot.h"
 #include "Link.h"
 #include "RenderTiming.h"
+#include "MotionTimeline.h"
 #include <Windows.h>
 #include <cstdio>
 #include <cstring>
@@ -194,7 +195,14 @@ void Observe(void* context) {
         std::snprintf(timing,sizeof(timing),"native cadence: samplesPerSecond=%.1f peakGapMs=%.2f",
             cadenceSamples*static_cast<double>(frequency.QuadPart)/(clock.QuadPart-cadenceAt),
             peakGap*1000.0/frequency.QuadPart);
-        Log(timing);cadenceAt=clock.QuadPart;cadenceSamples=0;peakGap=0;
+        Log(timing);
+        const auto motion=ReadMotionStats();
+        if(motion.renderFrames) {
+            char line[160]{};std::snprintf(line,sizeof(line),
+                "motion timeline: rendered=%u heldMoving=%u bufferMs=%.2f",
+                motion.renderFrames,motion.heldMovingFrames,motion.bufferMs);Log(line);
+        }
+        cadenceAt=clock.QuadPart;cadenceSamples=0;peakGap=0;
     }
     native::Reader reader(imageBase, ReadMemory, nullptr);
     native::Sample sample{};

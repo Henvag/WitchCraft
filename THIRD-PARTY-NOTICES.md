@@ -2,7 +2,8 @@
 
 `protocol/skycraft_protocol.h` and the shared-memory link in `host/Link.cpp` are adapted from
 [SkyCraft](https://github.com/chasmlol/SkyCraft) by chasmlol, licensed under the MIT License.
-The adapted Minecraft frame exporter is also from SkyCraft. Its complete license
+The adapted Minecraft frame exporter and the tick-history timing approach in
+`host/MotionTimeline.h` are also from SkyCraft. Its complete license
 is included in [minecraft-patch/LICENSE-SkyCraft](minecraft-patch/LICENSE-SkyCraft).
 
 The bundled [MinHook](https://github.com/TsudaKageyu/minhook) sources retain their

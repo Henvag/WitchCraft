@@ -2,6 +2,7 @@
 
 #include "Link.h"
 #include "RenderTiming.h"
+#include "MotionTimeline.h"
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -875,7 +876,7 @@ float4 PSMain(VSOut i) : SV_Target
 		}
         LARGE_INTEGER now{},frequency{};
         QueryPerformanceCounter(&now);QueryPerformanceFrequency(&frequency);
-        const auto renderMc=witchcraft::RenderMcState(a_mc,now.QuadPart,frequency.QuadPart);
+        const auto renderMc=witchcraft::RenderMotionState(a_mc,now.QuadPart,frequency.QuadPart);
         return Present(a_bgra, a_width, a_height, renderMc, a_game,avatarOnly);
 	}
 }
