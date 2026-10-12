@@ -28,7 +28,13 @@ hidden anchor stays on native ground and returns with F8.
 
 F8 now also requests a fresh Minecraft handoff after returning to Geralt, including
 after focus loss from the Windows key. This avoids restarting both games to
-re-enter; the new toggle passes offline tests and awaits in-game verification.
+re-enter; the user has confirmed re-entry in-game. A subsequent update allows
+small native controller deviations during follow acknowledgements and awaits
+a live water/animation comparison.
+
+Mining Witcher terrain is not implemented yet. Minecraft's SkyCraft mining code
+is present, but exporting diggable surfaces and cutting the native visible mesh
+and collision still require Witcher-specific excavation work.
 
 Elytra, native lake/river water and NPC/combat integration remain unimplemented
 or partial. Sampled terrain/wall depth occlusion is now built but awaits a live

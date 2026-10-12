@@ -41,14 +41,17 @@ class PilotMotion {
     std::uint64_t started_=0;
     double minimumError_=0;
     double groundSnapLimit_=.5;
+    double positionTolerance_=.05;
 public:
     void Reset() { pending_=false; }
-    bool Begin(const float* target,std::uint64_t now,bool groundFollow=false,double groundSnapLimit=.5) {
+    bool Begin(const float* target,std::uint64_t now,bool groundFollow=false,double groundSnapLimit=.5,double positionTolerance=.05) {
         if(pending_) return false;
         if(!std::isfinite(groundSnapLimit)||groundSnapLimit<.5||groundSnapLimit>4) return false;
+        if(!std::isfinite(positionTolerance)||positionTolerance<.05||positionTolerance>.1) return false;
         for(int i=0;i<3;++i) if(!std::isfinite(target[i])) return false;
         for(int i=0;i<3;++i) target_[i]=target[i];
         started_=now;pending_=true;groundFollow_=groundFollow;groundSnapLimit_=groundSnapLimit;
+        positionTolerance_=positionTolerance;
         minimumError_=std::numeric_limits<double>::infinity();return true;
     }
     double MinimumError() const {return minimumError_;}
@@ -66,7 +69,7 @@ public:
         }
         minimumError_=std::fmin(minimumError_,std::sqrt(error));
         if(now-started_>250) {pending_=false;return PilotAck::TimedOut;}
-        if(error<=0.0025) {pending_=false;return PilotAck::Confirmed;}
+        if(error<=positionTolerance_*positionTolerance_) {pending_=false;return PilotAck::Confirmed;}
         return PilotAck::Waiting;
     }
 };

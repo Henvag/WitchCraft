@@ -19,7 +19,24 @@ a fresh handoff at Geralt's current position; no game restart is required. F8 al
 re-enters after a manual return. Arrival resets saved flight while preserving
 creative mode and the Minecraft world. Player identity, visibility, terrain and
 connection checks still gate each handoff. This toggle is built and tested offline;
-its live behavior remains to be verified.
+the user has now confirmed F8 re-entry in-game.
+
+Terrain excavation is not connected yet. Terrain.cpp sends kTriTerrain without
+diggable/material permission; SkyDigClient consequently ignores attacks on these
+surfaces. SkyCraft's Minecraft mining and saved dug-cell machinery is available,
+but its Skyrim adapter also cuts native render meshes, removes collision in dug
+cells and updates native physics. WitchCraft has no equivalent native mesh or
+physics excavation handler. Enabling the flag alone would leave the visible
+Witcher ground intact. The sampled depth pass only hides Minecraft behind nearby
+surfaces; it cannot cut holes in Witcher's rendered terrain.
+
+The F8 test run confirmed repeated re-entry, but native follow acknowledgements
+failed with closest horizontal errors of 0.051-0.088 m during movement/animation
+transitions. Play now accepts up to 0.10 m for an acknowledged step; diagnostics
+retain 0.05 m. The 250 ms deadline, finite position checks, vertical snap limits
+and 2 m session follow bound remain. Regression tests cover recorded small errors,
+strict diagnostic behavior and rejection/timeout beyond 0.10 m. All 23 suites
+pass; the water/animation improvement still needs a live comparison.
 
 ## Verified live behavior
 

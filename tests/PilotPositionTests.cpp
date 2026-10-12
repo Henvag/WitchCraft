@@ -87,4 +87,19 @@ int main() {
     waterActual[0]=waterTarget[0];waterActual[2]=waterTarget[2]+4.01f;
     if(!motion.Begin(waterTarget,2800,true,4)||motion.Observe(waterActual,2816)!=PilotAck::TimedOut) return 45;
     if(motion.Begin(waterTarget,2900,true,5)) return 46;
+    float controllerTarget[]{-590.58f,-1156.734f,73.779f};
+    float controllerActual[]{-590.522f,-1156.734f,73.779f};
+    if(!motion.Begin(controllerTarget,3000,true,4,.1)||
+        motion.Observe(controllerActual,3016)!=PilotAck::Confirmed) return 47;
+    controllerActual[0]=controllerTarget[0]+.088f;
+    if(!motion.Begin(controllerTarget,3100,true,.5,.1)||
+        motion.Observe(controllerActual,3116)!=PilotAck::Confirmed) return 48;
+    if(!motion.Begin(controllerTarget,3200,true)||
+        motion.Observe(controllerActual,3216)!=PilotAck::Waiting) return 49;
+    motion.Reset();controllerActual[0]=controllerTarget[0]+.11f;
+    if(!motion.Begin(controllerTarget,3300,true,4,.1)||
+        motion.Observe(controllerActual,3316)!=PilotAck::Waiting||
+        motion.Observe(controllerActual,3551)!=PilotAck::TimedOut) return 50;
+    if(motion.Begin(controllerTarget,3600,true,4,.101)||
+        motion.Begin(controllerTarget,3600,true,4,std::numeric_limits<double>::quiet_NaN())) return 51;
 }
