@@ -467,3 +467,25 @@ coordinates are covered by a regression, alongside horizontal timeout and the
 upper height bound. This fixes the observed rejection in tests; crossing the
 water edge still requires live verification. Reported camera glitchiness is
 being clarified separately rather than assumed resolved by this change.
+
+### Sampled world depth for Minecraft water
+
+The user clarified that the visible glitch was flight returning Geralt above
+water, and Minecraft bucket water showing through Witcher walls and terrain.
+The water-edge acknowledgement correction is bundled with a sampled depth pass.
+After collision delivery, the native adapter publishes terrain and wall triangles
+for rendering. Geometry is bound to world/epoch/relocation and a revision; stale
+world data is rejected, empty replacements clear it, and unchanged revisions
+avoid copies/uploads. Invalid/degenerate triangles are rejected and vertex
+coordinates are relative to a local origin.
+
+Before Minecraft opaque/translucent meshes, the overlay writes these triangles
+to its depth buffer with no color target and no pixel shader. Witcher's image
+therefore remains visible through transparent overlay pixels while nearby
+sampled surfaces can obscure Minecraft water/blocks/avatar behind them. HUD and
+inventory remain screen overlays. Two-sided depth prevents backside wall leaks.
+Coverage is limited to the existing 16-metre ground patch and sampled nearby
+walls; roof/detail geometry, distant terrain and missed wall samples are not a
+complete game depth buffer. Native D3D12 scene depth integration remains future
+work. All 23 CPU suites pass; actual occlusion quality and flight across water
+still need live verification.

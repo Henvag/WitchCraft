@@ -12,6 +12,7 @@ std::mutex mutex;
 witchcraft::GameFrame latest{};
 witchcraft::GameControl control{};
 witchcraft::DiagnosticWalls diagnosticWalls;
+witchcraft::OcclusionGeometry occlusionGeometry;
 witchcraft::PilotCommand pilotCommand;
 witchcraft::PilotStatus pilotStatus;
 ULONGLONG pilotTime=0;
@@ -103,6 +104,18 @@ bool ReadGameFrame(GameFrame& out)
     std::lock_guard lock(mutex);
     if (!frameTime || ::GetTickCount64() - frameTime > timeout) return false;
     out = latest;
+    return true;
+}
+void PublishOcclusionGeometry(const DiagnosticWalls& geometry) {
+    std::lock_guard lock(mutex);
+    static_cast<DiagnosticWalls&>(occlusionGeometry)=geometry;
+    if(++occlusionGeometry.revision==0) ++occlusionGeometry.revision;
+}
+bool ReadOcclusionGeometry(const GameFrame& frame,std::uint64_t knownRevision,OcclusionGeometry& out) {
+    std::lock_guard lock(mutex);
+    if(!occlusionGeometry.revision||frame.worldId!=occlusionGeometry.world||
+        frame.collisionEpoch!=occlusionGeometry.epoch||frame.relocation!=occlusionGeometry.relocation) return false;
+    if(knownRevision!=occlusionGeometry.revision) out=occlusionGeometry;
     return true;
 }
 void PublishGameControl(const GameControl& value)

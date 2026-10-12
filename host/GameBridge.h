@@ -72,6 +72,9 @@ struct DiagnosticWalls {
 };
 void PublishDiagnosticWalls(const DiagnosticWalls& walls);
 bool ReadDiagnosticWalls(const GameFrame& frame,DiagnosticWalls& walls);
+struct OcclusionGeometry : DiagnosticWalls { std::uint64_t revision=0; };
+void PublishOcclusionGeometry(const DiagnosticWalls& geometry);
+bool ReadOcclusionGeometry(const GameFrame&,std::uint64_t knownRevision,OcclusionGeometry&);
 bool GameCollisionDrained(std::uint32_t epoch);
 void PublishGameControl(const GameControl& control);
 void PumpGameCollision();

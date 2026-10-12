@@ -20,13 +20,15 @@ and working inventory. Tick-history interpolation reduced the remaining dragging
 small residual latency remains in the external overlay pipeline.
 
 The current build adds F5 first/third-person switching and vanilla creative flight
-(double-tap Space, Space up, Shift down). These features are built and covered by
-unit tests, but still require in-game verification. A verified custom-camera data
+(double-tap Space, Space up, Shift down). The user has confirmed both features
+in-game; flying over water exposed an anchor-height rejection, now corrected
+in tests and awaiting a crossing check. A verified custom-camera data
 hook changes translation before Witcher rebuilds its camera transform. Geralt's
 hidden anchor stays on native ground and returns with F8.
 
-Elytra, native lake/river water, scenery occlusion and NPC/combat integration remain
-unimplemented or partial. Terrain/wall sampling covers the ground vicinity, so
+Elytra, native lake/river water and NPC/combat integration remain unimplemented
+or partial. Sampled terrain/wall depth occlusion is now built but awaits a live
+check; it does not cover the full Witcher scene. Terrain/wall sampling covers the ground vicinity, so
 high-altitude obstacles are incomplete. Survival falls and tall structures can
 still end the handoff. The adapter targets Witcher 3 DX12 executable 5.0.0.1048522
 and checks native signatures before enabling its hooks.

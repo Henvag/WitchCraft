@@ -45,6 +45,7 @@ unsigned terrainUpdates = 0;
 CollisionTiles collisionTiles;
 bool packetsPrepared=false;
 DiagnosticWalls pendingWalls;
+DiagnosticWalls pendingOcclusion;
 bool havePublishedPatch=false;
 std::uint32_t publishedWorld=0,publishedRelocation=0;
 float publishedCentre[3]{};
@@ -125,6 +126,7 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         groundTriangles=static_cast<std::uint32_t>(triangles.size());
         wallTriangles=static_cast<std::uint32_t>(wallMesh.size());
         triangles.insert(triangles.end(),wallMesh.begin(),wallMesh.end());
+        pendingOcclusion={worldSequence,terrainWorld,relocation,triangles};
         auto region=terrain.Region(terrainWorld,static_cast<std::uint32_t>(triangles.size()));
         region.maxY=static_cast<int>(std::ceil(terrain.Height()+WallPatch::top));
         if (!collisionTiles.Prepare(region,triangles)) {
@@ -165,6 +167,7 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         Log(line);
         havePublishedPatch=true; publishedWorld=worldSequence; publishedRelocation=relocation;
         PublishDiagnosticWalls(pendingWalls);
+        PublishOcclusionGeometry(pendingOcclusion);
         publishedCentre[0]=region.minX+TerrainPatch::cells/2;
         publishedCentre[1]=-region.maxZ+TerrainPatch::cells/2;
         publishedCentre[2]=terrain.Height();

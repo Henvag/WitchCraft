@@ -73,6 +73,16 @@ int main() {
     Check(!ReadDiagnosticWalls(frame,wallCopy),"Reject wall mesh after epoch change");
     --frame.collisionEpoch; frame.flags=0;
     Check(!ReadDiagnosticWalls(frame,wallCopy),"Wall mesh requires current diagnostic patch");
+    DiagnosticWalls geometry{frame.worldId,frame.collisionEpoch,frame.relocation,{ColTri{}}};
+    PublishOcclusionGeometry(geometry);OcclusionGeometry depth;
+    Check(ReadOcclusionGeometry(frame,0,depth)&&depth.revision&&depth.triangles.size()==1,"Current occlusion copied");
+    const auto revision=depth.revision;OcclusionGeometry unchanged;
+    Check(ReadOcclusionGeometry(frame,revision,unchanged)&&unchanged.triangles.empty(),"Unchanged depth avoids mesh copies");
+    ++frame.worldId;Check(!ReadOcclusionGeometry(frame,revision,unchanged),"Old world depth rejected");--frame.worldId;
+    ++frame.collisionEpoch;Check(!ReadOcclusionGeometry(frame,revision,unchanged),"Old epoch depth rejected");--frame.collisionEpoch;
+    ++frame.relocation;Check(!ReadOcclusionGeometry(frame,revision,unchanged),"Old location depth rejected");--frame.relocation;
+    geometry.triangles.clear();PublishOcclusionGeometry(geometry);
+    Check(ReadOcclusionGeometry(frame,revision,depth)&&depth.revision!=revision&&depth.triangles.empty(),"Empty replacement clears depth");
     ::Sleep(270);
     control = {};
     Check(!ReadGameFrame(copy) && WitchCraftReadControl(&control) && !control.active,

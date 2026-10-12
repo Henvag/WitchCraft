@@ -3,6 +3,7 @@
 #include "Link.h"
 #include "RenderTiming.h"
 #include "MotionTimeline.h"
+#include "OcclusionMesh.h"
 
 #include <Windows.h>
 #include <d3d11.h>
@@ -159,6 +160,10 @@ float4 PSMain(VSOut i) : SV_Target
 		ID3D11SamplerState*     pointSampler = nullptr;
 		ID3D11DepthStencilState* depthWrite = nullptr;
 		ID3D11DepthStencilState* depthRead = nullptr;
+		ID3D11RasterizerState* occlusionRaster = nullptr;
+		Mesh occlusion;
+		std::uint64_t occlusionRevision=0;
+		UINT occlusionCount=0;
 		ID3D11BlendState*       blend = nullptr;
 		ID3D11RasterizerState*  raster = nullptr;
 		ID3D11Texture2D*        color = nullptr;
@@ -325,6 +330,9 @@ float4 PSMain(VSOut i) : SV_Target
 			rd.FrontCounterClockwise = TRUE;
 			rd.DepthClipEnable = TRUE;
 			device->CreateRasterizerState(&rd, &raster);
+			rd.CullMode = D3D11_CULL_NONE;
+			rd.DepthBias = 2;
+			device->CreateRasterizerState(&rd, &occlusionRaster);
 			if (!vs || !ps || !layout || !frameCb || !objectCb) {
 				Log("world pipeline incomplete");
 				Release(context);
@@ -778,6 +786,46 @@ float4 PSMain(VSOut i) : SV_Target
 			if(!avatarOnly) DrawMesh(a_cam, scene, scene.origin[0], scene.origin[1], scene.origin[2], a_blended);
 		}
 
+		void DrawOcclusion(const Camera& camera,const GameFrame* game) {
+			OcclusionGeometry geometry;
+			if(!game||!ReadOcclusionGeometry(*game,occlusionRevision,geometry)) {
+				Release(occlusion.vb);occlusionRevision=0;occlusionCount=0;return;
+			}
+			if(geometry.revision&&geometry.revision!=occlusionRevision) {
+				const auto vertices=OcclusionVertices(geometry.triangles,occlusion.origin);
+				ID3D11Buffer* buffer=nullptr;
+				if(!vertices.empty()) {
+					D3D11_BUFFER_DESC desc{};desc.ByteWidth=static_cast<UINT>(vertices.size()*sizeof(Vertex));
+					desc.Usage=D3D11_USAGE_IMMUTABLE;desc.BindFlags=D3D11_BIND_VERTEX_BUFFER;
+					D3D11_SUBRESOURCE_DATA initial{vertices.data(),0,0};
+					if(FAILED(device->CreateBuffer(&desc,&initial,&buffer))) return;
+				}
+				Release(occlusion.vb);occlusion.vb=buffer;occlusionCount=static_cast<UINT>(vertices.size());
+				occlusionRevision=geometry.revision;
+				static ULONGLONG lastDepthLog=0;
+				if(!lastDepthLog||GetTickCount64()-lastDepthLog>=5000) {
+					char line[128]{};std::snprintf(line,sizeof(line),"occlusion depth: triangles=%u revision=%llu",
+						occlusionCount/3,static_cast<unsigned long long>(occlusionRevision));Log(line);lastDepthLog=GetTickCount64();
+				}
+			}
+			if(!occlusion.vb||!occlusionCount||!occlusionRaster) return;
+			D3D11_MAPPED_SUBRESOURCE mapped{};
+			if(FAILED(context->Map(frameCb,0,D3D11_MAP_WRITE_DISCARD,0,&mapped))) return;
+			auto* frame=static_cast<FrameCB*>(mapped.pData);
+			std::memcpy(frame->viewProj,camera.viewProj,sizeof(frame->viewProj));
+			std::memset(frame->mode,0,sizeof(frame->mode));context->Unmap(frameCb,0);
+			SetOffset(camera,occlusion.origin[0],occlusion.origin[1],occlusion.origin[2]);
+			// No color target: Witcher surfaces contribute depth while its image
+			// stays visible through untouched transparent overlay pixels.
+			context->OMSetRenderTargets(0,nullptr,dsv);
+			context->OMSetDepthStencilState(depthWrite,0);
+			context->RSSetState(occlusionRaster);context->PSSetShader(nullptr,nullptr,0);
+			const UINT stride=sizeof(Vertex),zero=0;
+			context->IASetVertexBuffers(0,1,&occlusion.vb,&stride,&zero);context->Draw(occlusionCount,0);
+			context->OMSetRenderTargets(1,&rtv,dsv);
+			context->RSSetState(raster);context->PSSetShader(ps,nullptr,0);
+		}
+
 		bool Present(std::uint8_t* a_bgra, int a_w, int a_h, const skycraft::proto::McState& a_mc, const GameFrame* a_game,bool avatarOnly)
 		{
 			if (!atlasSrv || !EnsureTarget(a_w, a_h)) {
@@ -806,6 +854,7 @@ float4 PSMain(VSOut i) : SV_Target
 			context->PSSetConstantBuffers(0, 1, &frameCb);
 			ID3D11SamplerState* samplers[] = { mipSampler, pointSampler };
 			context->PSSetSamplers(0, 2, samplers);
+			if(!avatarOnly) DrawOcclusion(cam,a_game);
 			DrawPass(cam, a_mc, false,avatarOnly);
 			DrawPass(cam, a_mc, true,avatarOnly);
 			context->OMSetRenderTargets(0, nullptr, nullptr);
