@@ -5,11 +5,13 @@
 
 #include <Windows.h>
 #include <cstdio>
+#include <atomic>
 namespace witchcraft::native {
 namespace {
 std::uintptr_t hiddenPlayer=0;
 PilotStatus status;
 PilotMotion motion;
+std::atomic<bool> recoveryRequested=false;
 constexpr std::uintptr_t hideRva=0x1fd57c0,teleportRva=0x1e2fc80;
 using HideFn=void(*)(void*,bool,bool,std::uint16_t);
 using TeleportFn=bool(*)(void*,const float*,const float*);
@@ -28,6 +30,7 @@ bool Validate(const Reader& reader,std::uintptr_t base,std::uintptr_t player) {
     return true;
 }
 }
+void RequestPilotRecovery() {recoveryRequested=true;}
 void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     std::uint32_t world,std::uint32_t epoch,std::uint32_t relocation,void(*log)(const char*)) {
     static const bool enabled=[] { wchar_t v[2]{};
@@ -41,6 +44,14 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     static const bool playEnabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_PLAY",v,2)&&v[0]==L'1';}();
     static const bool jumpEnabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_DIAGNOSTIC_JUMP",v,2)&&v[0]==L'1';}();
     const auto command=ReadPilotCommand();
+    if(recoveryRequested&&sample&&!command.active&&!hiddenPlayer&&!status.hidden) {
+        recoveryRequested=false;
+        std::uint16_t reasons=0;
+        if(Validate(reader,base,sample->player)&&reader.Read(sample->player+0x30c,reasons)&&!reasons) {
+            motion.Reset();status.failed=false;PublishPilotStatus(status);
+            log("native pilot: F8 recovery revalidated player methods and restored visibility; fresh handoff allowed");
+        } else log("native pilot: F8 recovery rejected; player identity or visibility remains incompatible");
+    }
     DWORD foreground=0;GetWindowThreadProcessId(GetForegroundWindow(),&foreground);
     const bool active=command.active&&!status.failed&&sample&&!sample->paused&&foreground==GetCurrentProcessId()&&
         command.world==world&&command.epoch==epoch&&command.relocation==relocation;

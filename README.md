@@ -26,6 +26,10 @@ in tests and awaiting a crossing check. A verified custom-camera data
 hook changes translation before Witcher rebuilds its camera transform. Geralt's
 hidden anchor stays on native ground and returns with F8.
 
+F8 now also requests a fresh Minecraft handoff after returning to Geralt, including
+after focus loss from the Windows key. This avoids restarting both games to
+re-enter; the new toggle passes offline tests and awaits in-game verification.
+
 Elytra, native lake/river water and NPC/combat integration remain unimplemented
 or partial. Sampled terrain/wall depth occlusion is now built but awaits a live
 check; it does not cover the full Witcher scene. Terrain/wall sampling covers the ground vicinity, so

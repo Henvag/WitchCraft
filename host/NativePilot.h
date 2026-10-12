@@ -93,4 +93,5 @@ inline bool PilotFollowPosition(const float* current,const double* mc,float* out
 }
 void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     std::uint32_t world,std::uint32_t epoch,std::uint32_t relocation,void(*log)(const char*));
+void RequestPilotRecovery();
 }

@@ -9,12 +9,17 @@ control remains gated; the explicit play controller owns this mode.
 Controls: WASD movement, Space jump (release between jumps), E inventory,
 1-9/wheel hotbar, mouse inventory cursor/clicks or Minecraft block/item actions,
 Shift/Ctrl modifiers, T chat/commands, F5 first/third person, Esc Minecraft
-screen/menu, F8 return to Geralt. In creative, double-tap Space to toggle flight;
+screen/menu, F8 switch between Minecraft and Geralt. In creative, double-tap Space to toggle flight;
 hold Space to rise and Shift to descend. Inventory
 keeps the avatar hidden and stops movement keys. A virtual cursor avoids Witcher
 OS cursor recentering. Game callbacks queue input; only the overlay thread writes
-the shared input ring. Overflow releases input and ends play. F8 ends the session
-for the game run; restarting starts a fresh session.
+the shared input ring. Overflow releases input and ends play. Focus loss releases
+input and restores Geralt. After returning to the unpaused game, press F8 to start
+a fresh handoff at Geralt's current position; no game restart is required. F8 also
+re-enters after a manual return. Arrival resets saved flight while preserving
+creative mode and the Minecraft world. Player identity, visibility, terrain and
+connection checks still gate each handoff. This toggle is built and tested offline;
+its live behavior remains to be verified.
 
 ## Verified live behavior
 

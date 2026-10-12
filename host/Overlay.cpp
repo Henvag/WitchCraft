@@ -11,6 +11,8 @@
 #include "DiagnosticMovement.h"
 #include "PlaySession.h"
 #include "NativeCamera.h"
+#include "NativePilot.h"
+#include "PlayToggle.h"
 #include "RenderTiming.h"
 #include "McSnapshotCache.h"
 #include "HudBlend.h"
@@ -333,6 +335,7 @@ namespace witchcraft
         static DiagnosticWalk pilot(true,manualEnabled);
         static DiagnosticMovement movement(jumpEnabled);
         static PlaySession play;
+        static PlayToggleKey toggleKey;
         static bool lastPlayActive=false,lastPlayGui=false;
         ManualInput playInput;
         static ULONGLONG lastPilotLog=0,nextPilotPerspective=0;
@@ -340,6 +343,14 @@ namespace witchcraft
         static unsigned lastJumpState=0;
         bool pilotDisplay=false;
         if(pilotEnabled) {
+            const bool toggle=playEnabled&&toggleKey.Update((::GetAsyncKeyState(VK_F8)&0x8000)!=0,
+                focused&&game&&!::IsIconic(game));
+            const bool toggleOff=toggle&&play.Active();
+            if(toggle&&!play.Active()) {
+                PublishPilotCommand({});link.PushInput(skycraft::proto::kInReleaseAll,0);
+                native::RequestPilotRecovery();play.Resume();
+                LogLine("MC play: F8 resume requested; rechecking native player and collision before takeover");
+            }
             const auto status=ReadPilotStatus();
             const auto now=::GetTickCount64();const auto before=movementEnabled?static_cast<unsigned>(movement.Status()):static_cast<unsigned>(pilot.Status());
             const bool capture=playEnabled?play.Active():movementEnabled?movement.Active():pilot.Active();
@@ -349,7 +360,7 @@ namespace witchcraft
                 play.Update(haveGame&&(mc.cameraMode==1||native::CameraReady())?&frame:nullptr,haveMc?&mc:nullptr,haveMc&&!status.failed,
                     focused&&game&&!::IsIconic(game)&&width>=100&&height>=100,
                     haveGame&&GameCollisionDrained(frame.collisionEpoch)&&link.CollisionConsumed(),now,sky,
-                    input.movement,input.stop,input.ready,status.hidden,native::CameraReady());
+                    input.movement,input.stop||toggleOff,input.ready,status.hidden,native::CameraReady());
                 if(input.overflow) {play.Stop("input queue overflow; returning Geralt");sky.flags=skycraft::proto::kSkyMenuOpen;}
                 if(play.Active()&&input.ready) {
                     // Cursor positions are tracked at native resolution, while

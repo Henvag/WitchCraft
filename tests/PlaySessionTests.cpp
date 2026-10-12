@@ -1,4 +1,5 @@
 #include "PlaySession.h"
+#include "PlayToggle.h"
 #include <cstdlib>
 #include <cstdio>
 #include <limits>
@@ -21,6 +22,21 @@ struct Fixture {
     void Move(double x) {game.feet[0]=mc.x=mc.curX=x;}
 };
 int main() {
+    PlayToggleKey toggle;
+    REQUIRE(toggle.Update(true,true));REQUIRE(!toggle.Update(true,true));
+    REQUIRE(!toggle.Update(false,true));REQUIRE(toggle.Update(true,true));
+    REQUIRE(!toggle.Update(false,false));REQUIRE(!toggle.Update(true,false));
+    REQUIRE(!toggle.Update(true,true)); // Held F8 outside the game does not trigger on return.
+    REQUIRE(!toggle.Update(false,true));REQUIRE(toggle.Update(true,true));
+    Fixture resumed;resumed.Start();resumed.Update(2700,1,false,false);
+    REQUIRE(!resumed.play.Active()&&!resumed.play.Keys());
+    const auto oldSequence=resumed.sky.teleportSeq;resumed.play.Resume();
+    resumed.Update(3000);resumed.Update(5000);REQUIRE(resumed.sky.teleportSeq!=oldSequence);
+    resumed.mc.teleportAck=resumed.sky.teleportSeq;resumed.Update(5100);resumed.Update(5600);
+    REQUIRE(resumed.play.Active());resumed.Update(5700,0,true);REQUIRE(!resumed.play.Active());
+    resumed.play.Resume();resumed.Update(6000);resumed.Update(8000);
+    resumed.mc.teleportAck=resumed.sky.teleportSeq;resumed.Update(8100);resumed.Update(8600);
+    REQUIRE(resumed.play.Active()); // Repeated F8 off/on works in the same game run.
     Fixture savedFlight;savedFlight.mc.flags=kMcInWorld|kMcCanFly|kMcFlying;
     auto arrive=[&](unsigned now) {
         ++savedFlight.mc.frameCounter;

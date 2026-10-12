@@ -8,6 +8,12 @@ public:
         bool consumed,std::uint64_t now,skycraft::proto::SkyState&,std::uint8_t keys,
         bool stop,bool inputReady,bool hidden,bool cameraOwned=false);
     bool Active() const {return active_;}
+    void Resume() {
+        if(active_) return;
+        const auto sequence=sequence_;
+        *this=PlaySession{};sequence_=sequence;
+        reason_="F8 resume requested; waiting for a fresh grounded handoff";
+    }
     std::uint8_t Keys() const {return keys_;}
     const char* Reason() const {return reason_;}
     double FollowLag() const {return followLag_;}
