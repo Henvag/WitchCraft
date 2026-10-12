@@ -15,6 +15,58 @@
 #include "../host/NativeGravity.h"
 #include "../protocol/skycraft_protocol.h"
 #include <atomic>
+#include <cstdlib>
+#include "../host/RenderTiming.h"
+
+int SampleFollow(const witchcraft::native::Reader& reader,unsigned seconds,const char* path) {
+    using namespace skycraft::proto;
+    if(!seconds||seconds>120) return 6;
+    auto mapping=OpenFileMappingW(FILE_MAP_READ,FALSE,kMappingName);
+    const auto* data=mapping?static_cast<const std::uint8_t*>(MapViewOfFile(mapping,FILE_MAP_READ,0,0,0x400)):nullptr;
+    if(!data) {if(mapping) CloseHandle(mapping);return 6;}
+    Header header{};std::memcpy(&header,data,sizeof(header));
+    if(header.magic!=kMagic||header.version!=kVersion) {UnmapViewOfFile(data);CloseHandle(mapping);return 6;}
+    auto* file=std::fopen(path,"w");
+    if(!file) {UnmapViewOfFile(data);CloseHandle(mapping);return 6;}
+    std::fprintf(file,"seconds,paused,skyFlags,mcFlags,mcFrame,mcTickAgeMs,feetX,feetY,feetZ,cameraX,cameraY,cameraZ,forwardX,forwardY,forwardZ,mcX,mcY,mcZ,mcCurX,mcCurY,mcCurZ\n");
+    LARGE_INTEGER start{},clock{},frequency{};QueryPerformanceFrequency(&frequency);QueryPerformanceCounter(&start);
+    unsigned rows=0;
+    for(;;) {
+        QueryPerformanceCounter(&clock);
+        const double elapsed=static_cast<double>(clock.QuadPart-start.QuadPart)/frequency.QuadPart;
+        if(elapsed>=seconds) break;
+        witchcraft::native::Sample sample{};McState mc{};SkyState sky{};bool haveMc=false,haveSky=false;
+        if(reader.Snapshot(sample)) {
+            for(int attempt=0;attempt<8;++attempt) {
+                const auto* sequence=reinterpret_cast<const volatile std::uint32_t*>(data+kOffMcState);
+                const auto before=*sequence;if(before&1) continue;
+                std::atomic_thread_fence(std::memory_order_acquire);std::memcpy(&mc,data+kOffMcState,sizeof(mc));
+                std::atomic_thread_fence(std::memory_order_acquire);
+                if(before==*sequence) {haveMc=true;break;}
+            }
+            for(int attempt=0;attempt<8;++attempt) {
+                const auto* sequence=reinterpret_cast<const volatile std::uint32_t*>(data+kOffSkyState);
+                const auto before=*sequence;if(before&1) continue;
+                std::atomic_thread_fence(std::memory_order_acquire);std::memcpy(&sky,data+kOffSkyState,sizeof(sky));
+                std::atomic_thread_fence(std::memory_order_acquire);
+                if(before==*sequence) {haveSky=true;break;}
+            }
+            if(haveMc&&haveSky) {
+                const auto visual=witchcraft::RenderMcState(mc,clock.QuadPart,frequency.QuadPart);
+                std::fprintf(file,"%.6f,%u,%u,%u,%llu,%.3f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
+                    elapsed,sample.paused?1u:0u,sky.flags,mc.flags,static_cast<unsigned long long>(mc.frameCounter),
+                    (clock.QuadPart-mc.tickQpc)*1000.0/frequency.QuadPart,
+                    sample.feet[0],sample.feet[2],-sample.feet[1],sample.camera[0],sample.camera[2],-sample.camera[1],
+                    sample.forward[0],sample.forward[2],-sample.forward[1],visual.x,visual.y,visual.z,mc.curX,mc.curY,mc.curZ);
+                ++rows;
+            }
+        }
+        Sleep(8);
+    }
+    std::fclose(file);UnmapViewOfFile(data);CloseHandle(mapping);
+    std::printf("Read-only follow capture: %u samples over %u seconds\n",rows,seconds);
+    return rows?0:7;
+}
 
 void PrintLink() {
     using namespace skycraft::proto;
@@ -120,6 +172,7 @@ public:
 int main(int argc, char** argv) {
     if (argc==2&&std::strcmp(argv[1],"--link")==0) { PrintLink(); return 0; }
     const bool diagnose = argc == 2 && std::strcmp(argv[1], "--diagnose") == 0;
+    const bool capture=argc==4&&std::strcmp(argv[1],"--sample-follow")==0;
     if (diagnose) PrintLink();
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     PROCESSENTRY32W entry{}; entry.dwSize = sizeof(entry);
@@ -163,9 +216,13 @@ int main(int argc, char** argv) {
     witchcraft::native::Sample sample{};
     if (!layout.Snapshot(sample)) {
         puts("Native adapter snapshot unavailable (menu/load/unsupported objects)");
-        if (!diagnose) return 5;
+        if (!diagnose&&!capture) return 5;
     } else {
         printf("Native adapter snapshot VERIFIED; original code matches=%u (read-only)\n", codeMatches ? 1u : 0u);
+    }
+    if(capture) {
+        const int result=SampleFollow(layout,static_cast<unsigned>(std::strtoul(argv[2],nullptr,10)),argv[3]);
+        CloseHandle(reader.process);return result;
     }
     // Exact GetGlobal instruction signature from the matching installed map.
     unsigned char signature[10]{};

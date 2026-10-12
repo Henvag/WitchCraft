@@ -235,3 +235,28 @@ movement, finite-distance checks, command expiry and interpolation clamping;
 it does not extrapolate or change Minecraft physics. Tests cover advancement
 between callbacks, endpoint clamping and unchanged diagnostic targets.
 All 19 suites pass; live reduction in perceived dragging remains unverified.
+
+## Read-only camera trajectory capture
+
+The follow-target update reduced many observed moving raw-position gaps to
+roughly 0.02-0.13 m, and the user reported slight improvement, but dragging
+remains. Recent samples showed close to 60 fresh Minecraft frames per second.
+These results do not establish whether the remaining delay is camera easing,
+render presentation or input/physics latency.
+
+The native probe can now capture the native actor, camera, view direction,
+Minecraft tick timestamp and interpolated/raw Minecraft positions at about
+120 samples per second. It opens the game with read/query permissions only,
+checks its executable fingerprint/signatures and leaves the shared mapping
+read-only. Capture duration is bounded to 120 seconds and can wait through the
+main menu until a valid player appears. Paused and Minecraft-state flags are
+included for filtering. No capture data is uploaded to GitHub.
+
+Example (choose a local output path):
+
+```powershell
+.\build\witchcraft_native_probe.exe --sample-follow 60 C:\Temp\witchcraft-follow.csv
+```
+
+The probe was built and its main-menu capture path verified. The live movement
+capture and camera-delay analysis are pending.
