@@ -260,3 +260,25 @@ Example (choose a local output path):
 
 The probe was built and its main-menu capture path verified. The live movement
 capture and camera-delay analysis are pending.
+
+## Captured follow and camera delay
+
+The read-only probe completed 6,040 samples over 120 seconds. Filtering to
+unpaused active play gave 3,142 samples across about 50 seconds, with repeated
+starts/stops and sideways movement. During movement above 1 m/s, horizontal
+interpolated Minecraft-to-native feet error had a median of 0.097 m and a 95th
+percentile of 0.200 m. A velocity comparison on a 20 ms grid estimated about
+20 ms of Minecraft-to-actor delay and about 20 ms of actor-to-camera delay.
+These estimates use 100 ms central differences and are approximate; they do
+not measure Windows compositor or display latency. Camera offset also varied
+with movement, confirming that native framing is not a rigid Minecraft camera.
+
+The next build reads newer Minecraft snapshots directly on the game callback,
+while retaining the pilot command's validity/expiry and teleport acknowledgement.
+It advances the grounded anchor's horizontal interpolation by one 60 Hz frame
+within the already resolved previous/current tick segment. It clamps at the
+known endpoint and never leads native height. This targets the measured follow
+and camera delay. All 19 suites pass, including stale snapshot/teleport/flying
+rejection, newer-tick use and lead endpoint clamping. Perceived improvement and
+camera stability are not yet verified in-game. The captured positions remain
+local and are excluded from the repository.

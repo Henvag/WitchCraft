@@ -1,4 +1,5 @@
 #include "NativePilot.h"
+#include "Link.h"
 
 #include <Windows.h>
 #include <cstdio>
@@ -76,7 +77,15 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     double target[3]{};
     // Evaluate the tick interpolation at consumption, not at the preceding
     // overlay upload. This removes an extra stale-pose delay without prediction.
-    ResolvePilotFeet(command,followNow.QuadPart,followFrequency.QuadPart,target);
+    auto followCommand=command;
+    if(playEnabled&&command.groundFollow&&Link::Get().McAlive()) {
+        skycraft::proto::McState latest{};
+        if(Link::Get().ReadMcState(latest)) UseLatestFollowState(followCommand,latest);
+    }
+    // The measured native-to-camera delay is about one frame. Advance only
+    // along the known horizontal tick segment to offset that camera delay.
+    ResolvePilotFeet(followCommand,followNow.QuadPart,followFrequency.QuadPart,target,
+        playEnabled?1000.0/60:0);
     const bool groundFollow=playEnabled&&command.groundFollow;
     if(groundFollow) target[1]=sample->feet[2]; // Keep engine ground ownership.
     if(!(playEnabled?PilotFollowPosition(sample->feet,target,destination):PilotPosition(sample->feet,target,destination))) {

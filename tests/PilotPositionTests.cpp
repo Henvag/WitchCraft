@@ -15,6 +15,23 @@ int main() {
     if(std::abs(early[0]-100.04)>1e-8||std::abs(late[0]-100.12)>1e-8||late[1]!=10) return 30;
     ResolvePilotFeet(follow,1075,1000,late);
     if(late[0]!=100.2||late[2]!=-200.2) return 31; // Never extrapolate past the known tick.
+    ResolvePilotFeet(follow,1030,1000,late,1000.0/60);
+    if(late[0]<=100.12||late[0]>100.2||late[1]!=10) return 33;
+    ResolvePilotFeet(follow,1049,1000,late,1000.0/60);
+    if(late[0]!=100.2||late[2]!=-200.2) return 34; // Lead stops at known position.
+    auto fresh=follow.followState;fresh.flags=skycraft::proto::kMcInWorld;
+    fresh.frameCounter=10;fresh.tickQpc=1050;fresh.prevX=100.2;fresh.curX=100.4;
+    if(!UseLatestFollowState(follow,fresh)) return 35;
+    ResolvePilotFeet(follow,1060,1000,late);
+    if(std::abs(late[0]-100.24)>1e-8) return 36; // New tick supersedes overlay snapshot.
+    auto invalid=fresh;++invalid.teleportAck;
+    if(UseLatestFollowState(follow,invalid)) return 37;
+    invalid=fresh;invalid.flags|=skycraft::proto::kMcFlying;
+    if(UseLatestFollowState(follow,invalid)) return 38;
+    invalid=fresh;invalid.frameCounter=9;
+    if(UseLatestFollowState(follow,invalid)) return 39;
+    invalid=fresh;invalid.tickQpc=1049;
+    if(UseLatestFollowState(follow,invalid)) return 40;
     follow.interpolateFollow=false;follow.feet[0]=42;
     ResolvePilotFeet(follow,1030,1000,late);
     if(late[0]!=42||late[1]!=10) return 32; // Diagnostics keep their exact target.

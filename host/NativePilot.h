@@ -3,11 +3,25 @@
 #include "GameBridge.h"
 #include "RenderTiming.h"
 namespace witchcraft::native {
+inline bool UseLatestFollowState(PilotCommand& command,const skycraft::proto::McState& latest) {
+    using namespace skycraft::proto;
+    if(!command.groundFollow||!command.interpolateFollow||
+        !(latest.flags&kMcInWorld)||(latest.flags&(kMcDead|kMcFlying))||
+        latest.teleportAck!=command.followState.teleportAck||
+        latest.frameCounter<command.followState.frameCounter||
+        latest.tickQpc<command.followState.tickQpc) return false;
+    command.followState=latest;
+    return true;
+}
 inline void ResolvePilotFeet(const PilotCommand& command,std::int64_t now,
-    std::int64_t frequency,double* target) {
+    std::int64_t frequency,double* target,double leadMs=0) {
     for(int i=0;i<3;++i) target[i]=command.feet[i];
     if(command.groundFollow&&command.interpolateFollow) {
-        const auto visual=RenderMcState(command.followState,now,frequency);
+        // Lead only within Minecraft's already collision-resolved tick segment.
+        // RenderMcState clamps to the known endpoint, including during stops.
+        const auto lead=std::isfinite(leadMs)&&leadMs>0&&leadMs<=20&&frequency>0?
+            static_cast<std::int64_t>(frequency*(leadMs/1000)):0;
+        const auto visual=RenderMcState(command.followState,now+lead,frequency);
         target[0]=visual.x;target[2]=visual.z;
     }
 }
