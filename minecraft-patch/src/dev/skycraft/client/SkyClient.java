@@ -80,7 +80,13 @@ public final class SkyClient {
 		boolean nowLinked = SkyLink.active();
 		if (nowLinked) {
 			SkyLink.readSkyState(sky); // on a torn read we simply keep last frame's state
-			dev.skycraft.world.SkyWater.refresh();
+			// WitchCraft: only accept a water grid sampled for the current world.
+			SkyLink.WaterGrid water = SkyLink.readWaterGrid();
+			if (water != null && water.worldId == sky.worldId && sky.inGame()) {
+				dev.skycraft.world.SkyWater.refresh();
+			} else if (water != null) {
+				dev.skycraft.world.SkyWater.clear();
+			}
 		} else {
 			dev.skycraft.world.SkyWater.clear();
 		}

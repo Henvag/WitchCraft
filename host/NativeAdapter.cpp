@@ -5,6 +5,7 @@
 #include "CollisionTiles.h"
 #include "NativePilot.h"
 #include "NativeCamera.h"
+#include "NativeWater.h"
 #include "Link.h"
 #include "RenderTiming.h"
 #include "MotionTimeline.h"
@@ -54,6 +55,42 @@ void Log(const char* text);
 bool PlayEnabled() {
     static const bool enabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_PLAY",v,2)&&v[0]==L'1';}();
     return enabled;
+}
+// Native lakes, rivers and sea around the Minecraft player, published as
+// SkyCraft's WaterGrid so vanilla swimming, buoyancy and drowning apply there.
+void SampleWater(const native::Reader& reader,const native::Sample& sample,ULONGLONG now) {
+    using namespace native;
+    static int verified=0; // 0 unchecked, 1 verified, -1 disabled
+    static ULONGLONG nextAt=0;static std::uint32_t lastWorld=0;
+    if(verified<0||sample.paused) return;
+    if(lastWorld==worldSequence&&now<nextAt) return;
+    nextAt=now+200;
+    if(!verified) {
+        std::uint8_t bytes[sizeof(waterLevelPrologue)]{};
+        verified=reader.Read(imageBase+waterLevelApprox,bytes)&&!std::memcmp(bytes,waterLevelPrologue,sizeof(bytes))?1:-1;
+        Log(verified>0?"native water: approximate water-level method verified":"native water: water-level method signature mismatch; swimming in native water disabled");
+        if(verified<0) return;
+    }
+    const auto water=reader.Pointer(sample.world+worldWaterOffset);
+    if(reader.Pointer(sample.world)!=imageBase+gameWorldVtable||!water||reader.Pointer(water)!=imageBase+globalWaterVtable) {
+        static ULONGLONG warned=0;
+        if(!warned||now-warned>=10000) {Log("native water: world or global water identity unavailable; publishing no water");warned=now;}
+        Link::Get().WriteWaterGrid(EmptyWaterGrid(worldSequence));lastWorld=worldSequence;return;
+    }
+    using LevelFn=float(*)(void*,float,float);
+    const auto level=reinterpret_cast<LevelFn>(imageBase+waterLevelApprox);
+    double x=sample.feet[0],z=-sample.feet[1];
+    const auto pilot=ReadPilotCommand();
+    if(pilot.active&&pilot.world==worldSequence&&std::isfinite(pilot.followState.curX)&&std::isfinite(pilot.followState.curZ)&&
+        std::hypot(pilot.followState.curX-x,pilot.followState.curZ-z)<=32) {x=pilot.followState.curX;z=pilot.followState.curZ;}
+    const auto grid=BuildWaterGrid(x,z,worldSequence,[&](float wx,float wy) {return level(reinterpret_cast<void*>(water),wx,wy);});
+    Link::Get().WriteWaterGrid(grid);
+    if(lastWorld!=worldSequence) {
+        unsigned wet=0;for(const float value:grid.surface) wet+=value>-1e20f;
+        char line[160]{};std::snprintf(line,sizeof(line),"native water: grid published world=%u wetColumns=%u centreLevel=%.3f",
+            worldSequence,wet,grid.surface[8*16+8]);Log(line);
+    }
+    lastWorld=worldSequence;
 }
 
 void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULONGLONG now) {
@@ -275,6 +312,7 @@ void Observe(void* context) {
     } else native::ToMinecraft(sample.forward, frame.forward);
     frame.verticalFov = sample.rawFov; // Provisional; rendering is disabled.
     WitchCraftSubmitFrame(&frame);
+    SampleWater(reader,sample,now);
     native::ApplyPilot(reader,imageBase,&sample,worldSequence,terrainWorld,relocation,Log);
     if (!hadSample || now - lastLog >= 3000) {
         char line[384]{};
