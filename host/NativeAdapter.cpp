@@ -49,6 +49,7 @@ ULONGLONG terrainWarning = 0;
 ULONGLONG terrainStarted = 0, terrainSampled = 0;
 unsigned terrainUpdates = 0;
 CollisionTiles collisionTiles;
+ProbeTiles probeTiles;
 bool packetsPrepared=false;
 DiagnosticWalls pendingWalls;
 DiagnosticWalls pendingOcclusion;
@@ -59,6 +60,63 @@ void Log(const char* text);
 bool PlayEnabled() {
     static const bool enabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_PLAY",v,2)&&v[0]==L'1';}();
     return enabled;
+}
+// Fast movement outruns the sampled 16 m patch (and its walls sit at the
+// anchor's height, not at flight altitude). Probe ahead along Minecraft's
+// velocity and send what the rays hit as short-lived collision.
+void ProbeAhead(const native::Reader& reader,const native::Sample& sample,ULONGLONG now) {
+    using namespace skycraft::proto;
+    if(!traceEnabled||!PlayEnabled()||sample.paused||terrainWorld!=worldSequence) return;
+    probeTiles.Expire(now,terrainWorld,collisionTiles.Covered());
+    const auto pilot=ReadPilotCommand();
+    if(!pilot.active||pilot.world!=worldSequence) return;
+    const auto& mc=pilot.followState;
+    const double seconds=std::isfinite(mc.tickMs)&&mc.tickMs>1&&mc.tickMs<1000?mc.tickMs/1000.:.05;
+    const double v[]{(mc.curX-mc.prevX)/seconds,(mc.curY-mc.prevY)/seconds,(mc.curZ-mc.prevZ)/seconds};
+    const double speed=std::hypot(v[0],v[1],v[2]);
+    if(!std::isfinite(speed)||speed<6||speed>150) return;
+    // Witcher coordinates: X, -MC Z, MC Y.
+    const float dir[]{static_cast<float>(v[0]/speed),static_cast<float>(-v[2]/speed),static_cast<float>(v[1]/speed)};
+    const float length=static_cast<float>(std::fmin(40.,speed*.45+2));
+    float side[]{dir[1],-dir[0],0};const float sl=std::hypot(side[0],side[1]);
+    if(sl<1e-3f) {side[0]=1;side[1]=0;} else {side[0]/=sl;side[1]/=sl;}
+    const float centre[]{static_cast<float>(mc.curX),static_cast<float>(-mc.curZ),static_cast<float>(mc.curY+.9)};
+    const float offsets[][2]{{0,0},{.35f,0},{-.35f,0},{0,.8f},{0,-.8f}};
+    std::vector<ColTri> quads;
+    for(const auto& o:offsets) {
+        float from[3]{},to[3]{};
+        for(int i=0;i<3;++i) {from[i]=centre[i]+side[i]*o[0]+(i==2?o[1]:0);to[i]=from[i]+dir[i]*length;}
+        SurfacePoint hit{};
+        if(native::TraceSurface(reader,imageBase,sample,from,to,hit)!=native::TraceStatus::hit) continue;
+        const float* p=hit.position;
+        if(std::hypot(p[0]-sample.feet[0],p[1]-sample.feet[1])<1.2f&&p[2]>sample.feet[2]-.3f&&p[2]<sample.feet[2]+2.4f) continue;
+        if(DugCell(static_cast<int>(std::floor(p[0])),static_cast<int>(std::floor(p[2])),static_cast<int>(std::floor(-p[1])))) continue;
+        float n[]{hit.normal[0],hit.normal[1],hit.normal[2]};const float nl=std::hypot(n[0],n[1],n[2]);
+        if(!(nl>.5f)) {for(int i=0;i<3;++i) n[i]=-dir[i];} else for(auto& c:n) c/=nl;
+        // Two tangents spanning a 3 m square on the hit plane.
+        float t1[]{n[1],-n[0],0};float tl=std::hypot(t1[0],t1[1]);
+        if(tl<1e-3f) {t1[0]=1;t1[1]=0;tl=1;}
+        for(auto& c:t1) c/=tl;
+        const float t2[]{n[1]*t1[2]-n[2]*t1[1],n[2]*t1[0]-n[0]*t1[2],n[0]*t1[1]-n[1]*t1[0]};
+        // 3 x 3 one-metre cells so pieces fit in collision tiles near their borders.
+        for(int cu=0;cu<3;++cu) for(int cv=0;cv<3;++cv) {
+            float corner[4][3]{};
+            const float su[]{0,1,1,0},sv[]{0,0,1,1};
+            for(int c=0;c<4;++c) {
+                const float a=cu-1.5f+su[c],b=cv-1.5f+sv[c];
+                float w[3]{};for(int i=0;i<3;++i) w[i]=p[i]+t1[i]*a+t2[i]*b;
+                corner[c][0]=w[0];corner[c][1]=w[2];corner[c][2]=-w[1];
+            }
+            const int tris[][3]{{0,1,2},{0,2,3},{0,2,1},{0,3,2}}; // Both windings: two-sided.
+            for(const auto& t:tris) {ColTri tri{};for(int c=0;c<3;++c) for(int i=0;i<3;++i) tri.v[c*3+i]=corner[t[c]][i];quads.push_back(tri);}
+        }
+    }
+    if(!quads.empty()) probeTiles.Add(quads,terrainWorld,now,collisionTiles.Covered());
+    for(int budget=0;budget<8&&probeTiles.Pending();++budget) {
+        const auto& packet=probeTiles.Front();
+        if(!WitchCraftSubmitCollision(packet.type,packet.bytes.data(),static_cast<std::uint32_t>(packet.bytes.size()))) break;
+        probeTiles.Accepted();
+    }
 }
 // Coarse scene depth along the camera's own view, refreshed every few frames.
 void SampleViewDepth(const native::Reader& reader,const native::Sample& sample) {
@@ -181,7 +239,7 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         std::copy_n(centre,3,wallOrigin); detailStarted=false; jobSamples=collisionSamples;
         terrainIndex=terrainHits=wallHits=0; tileDone=false; packetsPrepared=false;
         terrainStarted=now; terrainSampled=0; terrainUpdates=0;
-        if (newWorld) { terrainWorld=worldSequence; clearSent=false; collisionTiles.Reset(); }
+        if (newWorld) { terrainWorld=worldSequence; clearSent=false; collisionTiles.Reset(); probeTiles.Reset(); }
     }
     if (!clearSent) {
         if (!WitchCraftSubmitCollision(kColClear,&terrainWorld,sizeof(terrainWorld))) return;
@@ -397,6 +455,7 @@ void Observe(void* context) {
     WitchCraftSubmitFrame(&frame);
     SampleWater(reader,sample,now);
     SampleViewDepth(reader,sample);
+    ProbeAhead(reader,sample,now);
     script::InstallScriptBridge(imageBase,Log);
     native::ApplyPilot(reader,imageBase,&sample,worldSequence,terrainWorld,relocation,Log);
     if (!hadSample || now - lastLog >= 3000) {

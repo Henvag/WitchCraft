@@ -27,4 +27,24 @@ int main() {
         }
     }
     Check(!ScaleHud({},3,2,false,6,4,scaled)&&scaled.empty());
-}
+    {
+        // The span compositor matches scaling the HUD and blending every row.
+        const int w=13,h=7,tw=31,th=19;
+        std::vector<std::uint8_t> hud(static_cast<std::size_t>(w)*h*4,0);
+        for(int i=0;i<w*h;++i) if(i%5==0||i%7==3) {hud[i*4]=static_cast<std::uint8_t>(i*3);hud[i*4+1]=40;hud[i*4+2]=200;hud[i*4+3]=static_cast<std::uint8_t>(100+i%150);}
+        for(bool bottom:{false,true}) {
+            std::vector<std::uint8_t> a(static_cast<std::size_t>(tw)*th*4),b;
+            for(std::size_t i=0;i<a.size();++i) a[i]=static_cast<std::uint8_t>(i*7);
+            b=a;
+            std::vector<std::uint8_t> scaled;
+            if(!witchcraft::ScaleHud(hud,w,h,bottom,tw,th,scaled)) return 80;
+            for(int y=0;y<th;++y) for(int x=0;x<tw;++x) {
+                const auto* p=scaled.data()+(y*tw+x)*4;auto* d=a.data()+(y*tw+x)*4;if(!p[3]) continue;const int inv=255-p[3];
+                d[0]=static_cast<std::uint8_t>(p[2]+d[0]*inv/255);d[1]=static_cast<std::uint8_t>(p[1]+d[1]*inv/255);
+                d[2]=static_cast<std::uint8_t>(p[0]+d[2]*inv/255);d[3]=static_cast<std::uint8_t>(p[3]+d[3]*inv/255);
+            }
+            std::vector<int> lo,hi;if(!witchcraft::HudRowSpans(hud,w,h,lo,hi)) return 81;
+            witchcraft::BlendScaledHud(b.data(),tw,th,hud,w,h,bottom,lo,hi);
+            if(a!=b) return 82;
+        }
+    }}

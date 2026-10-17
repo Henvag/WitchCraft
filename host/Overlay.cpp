@@ -153,15 +153,12 @@ namespace witchcraft
 				return;
 			}
 			auto* dst = static_cast<std::uint8_t*>(g_bits);
-			if(g_hudChanged||g_scaledW!=g_width||g_scaledH!=g_height) {
-				if(!ScaleHud(g_hud,g_hudW,g_hudH,g_hudBottom,g_width,g_height,g_scaledHud)) return;
-				g_hudChanged=false;g_scaledW=g_width;g_scaledH=g_height;
+			static std::vector<int> spanLo,spanHi;
+			if(g_hudChanged) {
+				if(!HudRowSpans(g_hud,g_hudW,g_hudH,spanLo,spanHi)) return;
+				g_hudChanged=false;
 			}
-			for (int y = 0; y < g_height; ++y) {
-				const std::uint8_t* row = g_scaledHud.data() + static_cast<std::size_t>(y) * g_width * 4;
-				std::uint8_t* out = dst + static_cast<std::size_t>(y) * g_width * 4;
-				BlendHudRow(out,row,g_width);
-			}
+			BlendScaledHud(dst,g_width,g_height,g_hud,g_hudW,g_hudH,g_hudBottom,spanLo,spanHi);
 		}
 	}
 

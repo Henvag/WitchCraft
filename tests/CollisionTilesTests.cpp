@@ -126,4 +126,18 @@ int main() {
     Check(receiver[firstKey].size()==1&&receiver.known.contains(firstKey));
     Drain(tiles,receiver);
     puts("collision cube lookup, negative boundaries, stale removal, interruption and validation checks passed");
-}
+    {
+        // Probe tiles: only uncovered tiles, replaced when grown, emptied on expiry.
+        witchcraft::ProbeTiles probes;std::set<witchcraft::CollisionTiles::Key> covered{{0,0,0}};
+        skycraft::proto::ColTri inside{{1,1,1,2,1,1,1,2,1},0},probe{{9,1,1,10,1,1,9,2,1},0},straddle{{7.5f,1,1,8.5f,1,1,7.5f,2,1},0};
+        probes.Add({inside,probe,straddle},3,1000,covered);
+        if(probes.LiveTiles()!=1||!probes.Pending()||probes.Front().type!=skycraft::proto::kColTris||probes.Front().count!=1) return 90;
+        while(probes.Pending()) probes.Accepted();
+        probes.Add({probe},3,1100,covered);if(probes.Pending()) return 91; // Duplicate: nothing resent.
+        probes.Expire(2000,3,covered);if(probes.Pending()) return 92; // Refreshed at 1100.
+        probes.Expire(2700,3,covered);
+        if(!probes.Pending()||probes.Front().count!=0||probes.LiveTiles()) return 93;
+        while(probes.Pending()) probes.Accepted();
+        probes.Add({probe},3,3000,covered);covered.insert({1,0,0});probes.Expire(3100,3,covered);
+        if(probes.LiveTiles()) return 94; // The patch took the tile over: no empty that would erase its data.
+    }}

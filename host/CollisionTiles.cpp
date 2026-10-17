@@ -55,6 +55,7 @@ bool CollisionTiles::Prepare(const skycraft::proto::ColRegion& bounds,
     // accepted keys even if a teleport interrupted the preceding batch.
     std::set<Key> current;
     for(const auto& [key,mesh]:tiles) current.insert(key);
+    covered_=current;
     for (const auto& key:resident_) tiles.try_emplace(key);
     std::vector<Key> deliveryOrder;
     deliveryOrder.reserve(tiles.size());
@@ -97,6 +98,64 @@ bool CollisionTiles::Prepare(const skycraft::proto::ColRegion& bounds,
     }
     pending_=std::move(packets); next_=0;
     return true;
+}
+void ProbeTiles::Queue(const Key& key,const std::vector<skycraft::proto::ColTri>& triangles,std::uint32_t epoch) {
+    using namespace skycraft::proto;
+    constexpr int size=CollisionTiles::size;
+    ColRegion region{key[0]*size,key[1]*size,key[2]*size,
+        key[0]*size+size-1,key[1]*size+size-1,key[2]*size+size-1,epoch,static_cast<std::uint32_t>(triangles.size())};
+    Packet packet{key,kColTris,region.count,false,std::vector<std::uint8_t>(sizeof(region)+triangles.size()*sizeof(ColTri))};
+    std::memcpy(packet.bytes.data(),&region,sizeof(region));
+    if(!triangles.empty()) std::memcpy(packet.bytes.data()+sizeof(region),triangles.data(),triangles.size()*sizeof(ColTri));
+    auto marker=region;marker.count=0;
+    Packet markerPacket{key,kColRegion,0,false,std::vector<std::uint8_t>(sizeof(marker))};
+    std::memcpy(markerPacket.bytes.data(),&marker,sizeof(marker));
+    // A newer state of the same tile supersedes one still waiting.
+    std::erase_if(pending_,[&](const Packet& p) {return p.key==key;});
+    pending_.push_back(std::move(packet));pending_.push_back(std::move(markerPacket));
+}
+void ProbeTiles::Add(const std::vector<skycraft::proto::ColTri>& triangles,std::uint32_t epoch,
+    std::uint64_t now,const std::set<Key>& covered) {
+    constexpr int size=CollisionTiles::size;
+    std::map<Key,std::vector<skycraft::proto::ColTri>> added;
+    for(const auto& tri:triangles) {
+        bool finite=true;float centre[3]{};
+        for(int axis=0;axis<3;++axis) {
+            for(int c=0;c<3;++c) finite&=std::isfinite(tri.v[c*3+axis])&&std::abs(tri.v[c*3+axis])<1000000;
+            centre[axis]=(tri.v[axis]+tri.v[3+axis]+tri.v[6+axis])/3;
+        }
+        if(!finite) continue;
+        Key key{};bool fits=true;
+        for(int axis=0;axis<3;++axis) {
+            key[axis]=static_cast<int>(std::floor(centre[axis]/size));
+            for(int c=0;c<3;++c) fits&=static_cast<int>(std::floor(tri.v[c*3+axis]/size))==key[axis];
+        }
+        // SkyCollision files a packet under its tile only; keep triangles inside one.
+        if(!fits||covered.contains(key)) continue;
+        added[key].push_back(tri);
+    }
+    for(auto& [key,list]:added) {
+        auto& tile=live_[key];
+        bool changed=false;
+        for(const auto& tri:list) {
+            if(tile.triangles.size()>=maxPerTile) break;
+            bool duplicate=false;
+            for(const auto& old:tile.triangles) {
+                float d=0;for(int i=0;i<9;++i) d=std::fmax(d,std::abs(old.v[i]-tri.v[i]));
+                if(d<.25f) {duplicate=true;break;}
+            }
+            if(!duplicate) {tile.triangles.push_back(tri);changed=true;}
+        }
+        tile.expiry=now+lifetimeMs;
+        if(changed) Queue(key,tile.triangles,epoch);
+    }
+}
+void ProbeTiles::Expire(std::uint64_t now,std::uint32_t epoch,const std::set<Key>& covered) {
+    for(auto it=live_.begin();it!=live_.end();) {
+        if(covered.contains(it->first)) {it=live_.erase(it);continue;} // The patch owns it now.
+        if(now<it->second.expiry) {++it;continue;}
+        Queue(it->first,{},epoch);it=live_.erase(it);
+    }
 }
 void CollisionTiles::Accepted() {
     if (!Pending()) return;
