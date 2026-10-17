@@ -4,6 +4,8 @@ Goal: play The Witcher 3 as a Minecraft character in third person, with Minecraf
 movement, inventory, block placement/breaking, and eventually SkyCraft's combat,
 fluids, destruction, NPC collision, and multiplayer features.
 
+![WitchCraft main menu: the player's Minecraft character sits where Geralt did, under the WitchCraft logo](docs/images/main-menu.jpg)
+
 Minecraft runs SkyCraft's Fabric mod. This host uses SkyCraft protocol version 11,
 unchanged. Check protocol compatibility before upgrading the Fabric build.
 
@@ -48,6 +50,38 @@ See [play mode](docs/PLAY_MODE.md) for controls and limitations, and the
 This repository contains source and documentation; game files, saves, compiled
 DLLs/JARs and local diagnostic logs are excluded. References to dated logs in
 the development notes describe local evidence and are not downloadable artifacts.
+
+## Main menu
+
+The Hearts of Stone main menu is replaced: the player's Minecraft skin sits
+where Geralt did, breathing in the video's loop, and the WitchCraft logo takes
+the Witcher logo's place on the menu panel (also in the in-game pause menu).
+Both were checked in game on 2026-10-17. The game ignores loose movie and
+interface files, so `tools/menu_scene` patches the two entries in place inside
+the game's bundles after saving the originals:
+
+- `make_menu.py build` cuts Geralt out of `main_menu_ep1.usm`, fills the
+  background behind him, renders the skin from SkyCraft Prism's skin cache
+  (or `--skin`) and rewraps the new MPEG-1 stream in the original USM;
+  `install` writes it into `movies.bundle`.
+- `swf_logo.py install` draws `witchcraft_logo.png` into the English logo
+  inside `panel_ingamemenu.redswf` in `r4gui.bundle`.
+- `witchcraft_menu.ws` (script mod) always picks the Hearts of Stone menu;
+  the game otherwise chooses between three menus at random.
+
+Each tool's `restore --backup DIR` puts the original back, as does Steam's
+file verification. A game update or verification removes the patch, so
+reinstall it afterwards. Only the English logo is replaced; other languages
+keep the Witcher logo. Rebuild the video after changing skins.
+
+```powershell
+python tools/menu_scene/make_menu.py build --out main_menu_ep1.usm
+python tools/menu_scene/make_menu.py install --video main_menu_ep1.usm --backup <backup folder>
+python tools/menu_scene/swf_logo.py install --backup <backup folder>
+```
+
+Python 3 with numpy, opencv-python and Pillow, and ffmpeg on PATH, are needed.
+Close the game before installing or restoring.
 
 ## Development history
 
