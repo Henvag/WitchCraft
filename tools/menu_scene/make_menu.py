@@ -56,12 +56,6 @@ GERALT = [(1590, 215), (1660, 195), (1730, 215), (1775, 270), (1800, 330), (1850
 # up twice): the gear and sword on the ground and the bottle by the wall.
 PROPS = [(300, 820, 1240, 1180), (1940, 990, 2020, 1280)]
 
-# The WitchCraft logo, drawn right of the menu's dark panel (Flash draws that
-# panel over the video, so the logo cannot sit inside it). Video pixels: the
-# game shows the 2264x1274 picture scaled to the screen height.
-LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'witchcraft_logo.png')
-LOGO_BOX = (630, 16, 540)  # left, top, width
-
 # Camera and placement of the seated player (orthographic, skin pixels).
 YAW, PITCH, SCALE, ORIGIN, HEAD_YAW = -1.25, 0.12, 44.0, (1800.0, 1170.0), 0.65
 CROP_X = 900  # the player is rendered into x >= CROP_X only
@@ -161,24 +155,6 @@ class Scene:
         shadow = cv2.GaussianBlur(np.roll(rest, 18, axis=0), (0, 0), 22)
         shadow[:int(ORIGIN[1]) - 140] = 0  # only on the ground around the seat
         self.shade = (1.0 - 0.5 * np.clip(shadow * 1.6, 0, 1))[..., None]
-        self.logo = self._logo_layer()
-
-    @staticmethod
-    def _logo_layer():
-        """Premultiplied logo colour and alpha at its place in the frame. The
-        logo's black backdrop is keyed out and replaced by a soft dark halo so
-        it stays readable over the moonlit gate."""
-        x, y, w = LOGO_BOX
-        img = cv2.imread(LOGO)
-        h = round(w * img.shape[0] / img.shape[1])
-        img = cv2.resize(img, (w, h), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
-        alpha = np.clip((img.max(axis=2) - 0.07) / 0.18, 0, 1)
-        color = np.zeros((HEIGHT, WIDTH, 3), np.float32)
-        a = np.zeros((HEIGHT, WIDTH), np.float32)
-        color[y:y + h, x:x + w] = img * alpha[..., None]
-        a[y:y + h, x:x + w] = alpha
-        halo = np.clip(cv2.GaussianBlur(cv2.dilate(a, np.ones((9, 9), np.uint8)), (0, 0), 14) * 1.4, 0, 1) * 0.65
-        return color, a, halo
 
     def _clean_plate(self, original_path, geralt, cache_dir):
         forbid = geralt.copy()
@@ -202,9 +178,6 @@ class Scene:
         out = out * (1 - self.plate_weight) + self.plate.astype(np.float32) / 255.0 * self.plate_weight
         out *= self.shade
         out = out * (1 - alpha[..., None]) + color
-        logo_color, logo_alpha, halo = self.logo
-        out *= (1 - halo)[..., None]
-        out = out * (1 - logo_alpha[..., None]) + logo_color
         return (np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8)
 
 

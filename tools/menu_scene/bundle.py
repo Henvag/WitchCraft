@@ -74,6 +74,22 @@ def write(path, name, data, original_size):
         os.fsync(f.fileno())
 
 
+def write_compressed(path, name, packed, size, crc, slot):
+    """Overwrites a compressed entry in place; packed must fit in slot bytes."""
+    toc, _, offset, _, _, _, comp = find(path, name)
+    if comp != 1:
+        raise ValueError('%s is not zlib-compressed' % name)
+    if len(packed) > slot:
+        raise ValueError('%s: %d bytes do not fit the %d-byte slot' % (name, len(packed), slot))
+    with open(path, 'r+b') as f:
+        f.seek(offset)
+        f.write(packed)
+        f.seek(toc + 0x118)
+        f.write(struct.pack('<III', size, len(packed), crc))
+        f.flush()
+        os.fsync(f.fileno())
+
+
 def restore(path, name, original, original_entry):
     """Puts back the original data and table-of-contents entry."""
     toc = find(path, name)[0]
