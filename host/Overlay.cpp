@@ -350,6 +350,13 @@ namespace witchcraft
             if(toggle&&!play.Active()) {
                 PublishPilotCommand({});link.PushInput(skycraft::proto::kInReleaseAll,0);
                 native::RequestPilotRecovery();play.Resume();
+                // A Minecraft screen left open when play ended (pause menu,
+                // inventory, chat) blocks the fresh handoff, and the hidden
+                // window never sees Escape itself. Close it for the player.
+                if(haveMc&&(mc.flags&skycraft::proto::kMcScreenOpen)) {
+                    link.PushInput(skycraft::proto::kInKey,41,1);link.PushInput(skycraft::proto::kInKey,41,0);
+                    LogLine("MC play: closing the Minecraft screen left open so F8 can resume");
+                }
                 LogLine("MC play: F8 resume requested; rechecking native player and collision before takeover");
             }
             const auto status=ReadPilotStatus();

@@ -69,7 +69,14 @@ std::uint32_t ReadPersistentWorld(const native::Reader& reader,std::uintptr_t wo
     std::u16string path(count,u'\0');
     for(std::uint32_t i=0;i<count;++i) if(!reader.Read(data+i*2,path[i])) return 0;
     while(!path.empty()&&path.back()==u'\0') path.pop_back();
-    const auto hash=digging::WorldHash(path);
+    auto hash=digging::WorldHash(path);
+    if(!hash) {
+        // The first live run showed an 8-bit path: read `count` bytes instead.
+        path.assign(count,u'\0');
+        for(std::uint32_t i=0;i<count;++i) {std::uint8_t c=0;if(!reader.Read(data+i,c)) return 0;path[i]=c;}
+        while(!path.empty()&&path.back()==u'\0') path.pop_back();
+        hash=digging::WorldHash(path);
+    }
     char line[640]{};int used=std::snprintf(line,sizeof(line),"native world: persistent identity %08x path=",hash);
     for(const char16_t c:path) if(used<static_cast<int>(sizeof(line))-2) line[used++]=c>=0x20&&c<0x7f?static_cast<char>(c):'?';
     Log(line);
