@@ -1,9 +1,9 @@
 // WitchCraft main menu.
 //
-// tools/menu_scene replaces the Hearts of Stone menu video (the Minecraft
-// player sits where Geralt did), so that menu is always the one shown, the
-// Flash Witcher logo is hidden and the version label above the menu list is
-// enlarged into a "WitchCraft" title.
+// tools/menu_scene replaces the Hearts of Stone menu video: the Minecraft
+// player sits where Geralt did and the WitchCraft logo is drawn beside the
+// menu panel. This makes that menu the one always shown and hides the Flash
+// Witcher logo above the menu list.
 
 // The game normally picks the base, Hearts of Stone or Blood and Wine menu at
 // random; only the Hearts of Stone video carries the Minecraft player.
@@ -19,15 +19,10 @@ function PopulateMenuQueueMainAlways( out menus : array< name > )
 	wrappedMethod( menus );
 }
 
-@addField(CR4IngameMenu)
-var wcTitlePlaced : bool;
-
 @addMethod(CR4IngameMenu)
-function WcShowTitle()
+function WcHideGameLogo()
 {
-	var list, logo, label : CScriptedFlashSprite;
-	var title : CScriptedFlashTextField;
-	var scale : float;
+	var list, logo : CScriptedFlashSprite;
 
 	if( !isMainMenu || !m_flashModule )
 		return;
@@ -39,23 +34,6 @@ function WcShowTitle()
 		logo.SetVisible( false );
 		logo.SetAlpha( 0 );
 	}
-
-	// txtVersion is a fixed 434x38 px field centred on the menu panel, just
-	// below where the logo was. Larger text would be clipped, so the field
-	// itself is scaled up around its centre and moved into the logo's place.
-	title = m_flashModule.GetChildFlashTextField( "txtVersion" );
-	if( title )
-		title.SetTextHtml( "<p align='center'><font color='#F2E6C8'>WitchCraft</font></p>" );
-	label = m_flashModule.GetChildFlashSprite( "txtVersion" );
-	if( label && !wcTitlePlaced )
-	{
-		scale = 2.6;
-		label.SetXScale( label.GetXScale() * scale );
-		label.SetYScale( label.GetYScale() * scale );
-		label.SetX( label.GetX() - 217.0 * ( scale - 1.0 ) );
-		label.SetY( label.GetY() - 130.0 );
-		wcTitlePlaced = true;
-	}
 }
 
 // Runs when the main menu opens and whenever its root list is rebuilt.
@@ -63,5 +41,5 @@ function WcShowTitle()
 function PopulateMenuData()
 {
 	wrappedMethod();
-	WcShowTitle();
+	WcHideGameLogo();
 }
