@@ -108,6 +108,7 @@ namespace skycraft::proto
 		kMcFlying = 1u << 7,
 		kMcCanFly = 1u << 9, // WitchCraft extension: vanilla abilities.mayfly.
 		kMcInWater = 1u << 8, // WitchCraft extension: contact, not just sprint-swimming.
+		kMcFallFlying = 1u << 10, // WitchCraft extension: vanilla Elytra gliding.
 	};
 
 	struct McState

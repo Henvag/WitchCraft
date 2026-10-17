@@ -48,7 +48,10 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
             if(now-freshAt_>1000) Stop("Minecraft position reports stalled");
             if(!catchingUp_&&followLag_>1.25) catchingUp_=true;
             else if(catchingUp_&&followLag_<.5) catchingUp_=false;
-            const bool coverage=(game->flags&(kGamePlayPatch|kGameDiagnosticPatch))!=0;
+            // Flight or gliding well above the native ground anchor does not
+            // need fresh support underneath; low flight and landings still wait.
+            const bool airborne=(mc->flags&(kMcFlying|kMcFallFlying))&&mc->curY-nativeGround_>6;
+            const bool coverage=airborne||(game->flags&(kGamePlayPatch|kGameDiagnosticPatch))!=0;
             // Pause physics, including inertia/gravity, rather than merely
             // releasing W while an airborne player continues past the patch.
             holdPhysics_=active_&&(catchingUp_||!coverage);

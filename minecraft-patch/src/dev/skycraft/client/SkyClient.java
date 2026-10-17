@@ -367,6 +367,9 @@ public final class SkyClient {
 			if (player.getAbilities().mayfly) {
 				flags |= 1 << 9;
 			}
+			if (player.isFallFlying()) {
+				flags |= 1 << 10; // WitchCraft: Elytra gliding.
+			}
 			if (player.getAbilities().flying) {
 				flags |= Proto.MC_FLYING;
 			}

@@ -82,6 +82,17 @@ int main() {
     flight.mc.curY=8;fly(5150);REQUIRE(flight.play.Active()); // Native ground may rise underneath flight.
     flight.mc.flags|=kMcScreenOpen;fly(5200,17);REQUIRE(flight.play.Active()&&!flight.play.Keys());
     fly(5300,0,true);REQUIRE(!flight.play.Active());
+    // Elytra gliding high above the anchor keeps moving without fresh terrain;
+    // near the ground it waits for support like any landing.
+    Fixture glide;glide.Start();
+    auto glideUpdate=[&](unsigned now,unsigned keys=0) {
+        ++glide.mc.frameCounter;
+        glide.play.Update(&glide.game,&glide.mc,true,true,true,now,glide.sky,keys,false,true,true,true);
+    };
+    glide.game.flags&=~kGameDiagnosticPatch;glide.mc.flags=kMcInWorld|kMcFallFlying;glide.mc.curY=40;
+    glideUpdate(2700,1);REQUIRE(glide.play.Active()&&glide.play.Keys()==1&&!(glide.sky.flags&kSkyHoldPhysics));
+    glide.mc.curY=14;glideUpdate(2800,1);REQUIRE(glide.play.Active()&&!glide.play.Keys()&&(glide.sky.flags&kSkyHoldPhysics));
+    glide.mc.flags=kMcInWorld;glide.mc.curY=40;glideUpdate(2900,1);REQUIRE(glide.sky.flags&kSkyHoldPhysics); // Plain falls still wait.
     Fixture gated;gated.Start();gated.mc.flags|=kMcFlying|kMcCanFly;gated.Update(2700);
     REQUIRE(!gated.play.Active()); // Flight requires the native camera hook.
     Fixture water;water.Start();water.mc.flags&=~kMcOnGround;water.mc.flags|=kMcInWater;

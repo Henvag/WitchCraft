@@ -85,7 +85,8 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
         fail("native pilot: requested position not observed within 250 ms; stopped");return;
     }
     if(ack==PilotAck::Waiting&&!continuous) return;
-    // Retarget from the latest observed anchor each update. Native locomotion
+    // Retarget from the latest observed anchor each update. Steps of up to 2 m
+    // per callback keep pace with Elytra and sprint flight at 60 Hz. Native locomotion
     // may move after an accepted teleport, so waiting 250 ms for the obsolete
     // exact target stalls follow and makes Minecraft outrun terrain delivery.
     if(continuous) motion.Reset();
@@ -120,7 +121,7 @@ void ApplyPilot(const Reader& reader,std::uintptr_t base,const Sample* sample,
     }
     const bool groundFollow=playEnabled&&command.groundFollow;
     if(groundFollow) target[1]=sample->feet[2]; // Keep engine ground ownership.
-    if(!(playEnabled?PilotFollowPosition(sample->feet,target,destination,continuous?32:2):PilotPosition(sample->feet,target,destination))) {
+    if(!(playEnabled?PilotFollowPosition(sample->feet,target,destination,continuous?32:2,continuous?2:.5):PilotPosition(sample->feet,target,destination))) {
         fail("native pilot: follow target exceeded finite distance bound; stopped");return;
     }
     const auto transform=reader.Pointer(sample->player+0xb0);

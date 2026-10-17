@@ -140,4 +140,8 @@ int main() {
     if(PilotFollowPosition(current,catchup,out)||!PilotFollowPosition(current,catchup,out,32)||
         std::abs(out[0]-100.5f)>.001f) return 52; // Animation displacement catches up through small steps.
     catchup[0]=133;if(PilotFollowPosition(current,catchup,out,32)) return 53;
+    catchup[0]=110; // Elytra-speed play steps up to 2 m per callback.
+    if(!PilotFollowPosition(current,catchup,out,32,2)||std::abs(out[0]-102.f)>.001f) return 54;
+    catchup[0]=101.5;if(!PilotFollowPosition(current,catchup,out,32,2)||std::abs(out[0]-101.5f)>.001f) return 55;
+    if(PilotFollowPosition(current,catchup,out,32,3)||PilotFollowPosition(current,catchup,out,32,.1)) return 56;
 }

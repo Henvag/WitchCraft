@@ -42,8 +42,11 @@ public final class TerrainGuard {
         held = null;
         Vec3 pos = player.position();
         boolean flying = player.getAbilities().flying;
+        // Gliding still lands on sampled ground, but a long glide over a
+        // valley must never be pulled back to the last supported cliff edge.
+        boolean gliding = player.isFallFlying();
         boolean wet = player.isInWater() || player.isSwimming();
-        if(flying||wet) safe=null;
+        if(flying||wet||gliding) safe=null;
         if (!flying && !wet && previous != null) {
             // Query from the preceding tick so a fast downward step cannot put
             // the measured surface above the collision search before recovery.
@@ -52,7 +55,7 @@ public final class TerrainGuard {
                 pos = new Vec3(pos.x, ground + .002, pos.z);
                 place(player, pos); sync(minecraft, player, pos);
                 report("corrected a crossed sampled surface");
-            } else if (safe != null) {
+            } else if (safe != null && !gliding) {
                 boolean blockBelow = false;
                 for (int depth = 0; depth <= 4; depth++) {
                     BlockPos block = BlockPos.containing(pos.x, pos.y - depth, pos.z);

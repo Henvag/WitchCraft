@@ -109,15 +109,15 @@ inline bool PilotPosition(const float* current,const double* mc,float* out) {
 }
 // Play mode catches up using bounded engine steps. Camera translation is owned
 // by Minecraft, so an old native animation target does not gate the next step.
-inline bool PilotFollowPosition(const float* current,const double* mc,float* out,double maximumDistance=2) {
+inline bool PilotFollowPosition(const float* current,const double* mc,float* out,double maximumDistance=2,double maximumStep=.5) {
     const double converted[]{mc[0],-mc[2],mc[1]};double distance=0;
     for(int i=0;i<3;++i) {
         if(!std::isfinite(current[i])||!std::isfinite(converted[i])||std::abs(converted[i])>1000000) return false;
         distance+=std::pow(converted[i]-current[i],2);
     }
-    if(!std::isfinite(maximumDistance)||maximumDistance<2||maximumDistance>32||
+    if(!std::isfinite(maximumDistance)||maximumDistance<2||maximumDistance>32||!(maximumStep>=.5&&maximumStep<=2)||
         !std::isfinite(distance)||distance>maximumDistance*maximumDistance) return false;
-    const double scale=distance>.25?.5/std::sqrt(distance):1;
+    const double scale=distance>maximumStep*maximumStep?maximumStep/std::sqrt(distance):1;
     for(int i=0;i<3;++i) out[i]=static_cast<float>(current[i]+(converted[i]-current[i])*scale);
     out[3]=1;return true;
 }
