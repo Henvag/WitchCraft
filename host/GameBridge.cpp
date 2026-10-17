@@ -1,5 +1,6 @@
 #include "GameBridge.h"
 #include "Link.h"
+#include "Excavation.h"
 #include <Windows.h>
 #include <cmath>
 #include <cstring>
@@ -106,6 +107,29 @@ bool ReadGameFrame(GameFrame& out)
     out = latest;
     return true;
 }
+namespace {
+std::mutex digLock;
+std::uint32_t persistentSession=0,persistentWorld=0;
+excavation::Store dugStore;
+}
+void PublishPersistentWorld(std::uint32_t sessionWorld,std::uint32_t world) {
+    std::lock_guard lock(digLock);
+    persistentSession=sessionWorld;persistentWorld=world;
+    if(dugStore.World()!=world) dugStore.Reset(world);
+}
+std::uint32_t PersistentWorld(std::uint32_t sessionWorld) {
+    std::lock_guard lock(digLock);
+    return sessionWorld&&sessionWorld==persistentSession?persistentWorld:0;
+}
+void ApplyDugPacket(const std::uint8_t* data,std::uint32_t bytes) {
+    std::lock_guard lock(digLock);
+    if(persistentWorld) dugStore.Apply(std::span<const std::uint8_t>(data,bytes));
+}
+bool DugCell(std::int32_t x,std::int32_t y,std::int32_t z) {
+    std::lock_guard lock(digLock);
+    return persistentWorld&&dugStore.Contains({x,y,z});
+}
+std::uint64_t DugRevision() {std::lock_guard lock(digLock);return dugStore.Revision();}
 void PublishOcclusionGeometry(const DiagnosticWalls& geometry) {
     std::lock_guard lock(mutex);
     static_cast<DiagnosticWalls&>(occlusionGeometry)=geometry;

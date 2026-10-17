@@ -6,6 +6,8 @@
 #include "NativePilot.h"
 #include "NativeCamera.h"
 #include "NativeWater.h"
+#include "Digging.h"
+#include <string>
 #include "Link.h"
 #include "RenderTiming.h"
 #include "MotionTimeline.h"
@@ -56,6 +58,22 @@ bool PlayEnabled() {
     static const bool enabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_PLAY",v,2)&&v[0]==L'1';}();
     return enabled;
 }
+// CWorld's depot path String (TDynArray<wchar_t>: data at +0x5430, count at
+// +0x5438), as read by its GetDepotPath script thunk at RVA 0x22a1190.
+std::uint32_t ReadPersistentWorld(const native::Reader& reader,std::uintptr_t world) {
+    if(reader.Pointer(world)!=imageBase+native::gameWorldVtable) return 0;
+    std::uint32_t count=0;
+    const auto data=reader.Pointer(world+0x5430);
+    if(!data||!reader.Read(world+0x5438,count)||count<6||count>512) return 0;
+    std::u16string path(count,u'\0');
+    for(std::uint32_t i=0;i<count;++i) if(!reader.Read(data+i*2,path[i])) return 0;
+    while(!path.empty()&&path.back()==u'\0') path.pop_back();
+    const auto hash=digging::WorldHash(path);
+    char line[640]{};int used=std::snprintf(line,sizeof(line),"native world: persistent identity %08x path=",hash);
+    for(const char16_t c:path) if(used<static_cast<int>(sizeof(line))-2) line[used++]=c>=0x20&&c<0x7f?static_cast<char>(c):'?';
+    Log(line);
+    return hash;
+}
 // Native lakes, rivers and sea around the Minecraft player, published as
 // SkyCraft's WaterGrid so vanilla swimming, buoyancy and drowning apply there.
 void SampleWater(const native::Reader& reader,const native::Sample& sample,ULONGLONG now) {
@@ -75,7 +93,8 @@ void SampleWater(const native::Reader& reader,const native::Sample& sample,ULONG
     if(reader.Pointer(sample.world)!=imageBase+gameWorldVtable||!water||reader.Pointer(water)!=imageBase+globalWaterVtable) {
         static ULONGLONG warned=0;
         if(!warned||now-warned>=10000) {Log("native water: world or global water identity unavailable; publishing no water");warned=now;}
-        Link::Get().WriteWaterGrid(EmptyWaterGrid(worldSequence));lastWorld=worldSequence;return;
+        const auto persistent=PersistentWorld(worldSequence);
+        Link::Get().WriteWaterGrid(EmptyWaterGrid(persistent?persistent:worldSequence));lastWorld=worldSequence;return;
     }
     using LevelFn=float(*)(void*,float,float);
     const auto level=reinterpret_cast<LevelFn>(imageBase+waterLevelApprox);
@@ -83,7 +102,8 @@ void SampleWater(const native::Reader& reader,const native::Sample& sample,ULONG
     const auto pilot=ReadPilotCommand();
     if(pilot.active&&pilot.world==worldSequence&&std::isfinite(pilot.followState.curX)&&std::isfinite(pilot.followState.curZ)&&
         std::hypot(pilot.followState.curX-x,pilot.followState.curZ-z)<=32) {x=pilot.followState.curX;z=pilot.followState.curZ;}
-    const auto grid=BuildWaterGrid(x,z,worldSequence,[&](float wx,float wy) {return level(reinterpret_cast<void*>(water),wx,wy);});
+    const auto persistent=PersistentWorld(worldSequence);
+    const auto grid=BuildWaterGrid(x,z,persistent?persistent:worldSequence,[&](float wx,float wy) {return level(reinterpret_cast<void*>(water),wx,wy);});
     Link::Get().WriteWaterGrid(grid);
     if(lastWorld!=worldSequence) {
         unsigned wet=0;for(const float value:grid.surface) wet+=value>-1e20f;
@@ -165,6 +185,8 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         }
         if (terrainIndex<jobSamples) return;
         auto triangles=terrain.Triangles();
+        const bool diggable=PersistentWorld(worldSequence)!=0;
+        if(diggable) for(auto& tri:triangles) tri.flags=digging::DiggableTerrain();
         auto wallMesh=walls.Triangles();
         const auto detailMesh=bodyWalls.Triangles();
         wallMesh.insert(wallMesh.end(),detailMesh.begin(),detailMesh.end());
@@ -172,10 +194,19 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
         groundTriangles=static_cast<std::uint32_t>(triangles.size());
         wallTriangles=static_cast<std::uint32_t>(wallMesh.size());
         triangles.insert(triangles.end(),wallMesh.begin(),wallMesh.end());
-        pendingOcclusion={worldSequence,terrainWorld,relocation,triangles};
+        if(diggable) {
+            std::size_t cut=0;
+            triangles=digging::CutDug(triangles,[](int x,int y,int z) {return DugCell(x,y,z);},&cut);
+            static std::size_t lastCut=0;
+            if(cut!=lastCut) {char line[96]{};std::snprintf(line,sizeof(line),"digging: %zu sampled triangles cut by dug cells",cut);Log(line);lastCut=cut;}
+        }
+        // Occlusion follows what is still there: ghosts are only for Minecraft.
+        std::vector<skycraft::proto::ColTri> visible;visible.reserve(triangles.size());
+        for(const auto& tri:triangles) if(!(tri.flags&skycraft::proto::kTriGhost)) visible.push_back(tri);
+        pendingOcclusion={worldSequence,terrainWorld,relocation,visible};
         auto region=terrain.Region(terrainWorld,static_cast<std::uint32_t>(triangles.size()));
         region.maxY=static_cast<int>(std::ceil(terrain.Height()+WallPatch::top));
-        if (!collisionTiles.Prepare(region,triangles)) {
+        if (!collisionTiles.Prepare(region,triangles,[](int x,int y,int z) {return DugCell(x,y,z);})) {
             traceEnabled=false;
             Log("real terrain: tile validation failed; sampling disabled, control remains disabled");
             return;
@@ -271,6 +302,9 @@ void Observe(void* context) {
     }
     if (!hadSample || previous.world != sample.world || previous.player != sample.player) {
         if (++worldSequence == 0) ++worldSequence;
+        const auto persistent=ReadPersistentWorld(reader,sample.world);
+        if(!persistent) Log("native world: persistent identity unavailable; digging into Witcher terrain disabled");
+        PublishPersistentWorld(worldSequence,persistent);
         if (++relocation == 0) ++relocation;
     } else {
         double distanceSquared = 0;

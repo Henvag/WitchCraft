@@ -2,6 +2,7 @@
 #include "skycraft_protocol.h"
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <set>
 #include <vector>
 
@@ -20,8 +21,10 @@ public:
         bool retain=false;
         std::vector<std::uint8_t> bytes;
     };
+    // `dug(x, y, z)` removes voxel support from Minecraft cells dug out of the land.
     bool Prepare(const skycraft::proto::ColRegion& bounds,
-        const std::vector<skycraft::proto::ColTri>& triangles);
+        const std::vector<skycraft::proto::ColTri>& triangles,
+        const std::function<bool(int,int,int)>& dug={});
     void Reset() { resident_.clear(); pending_.clear(); next_=0; }
     bool Pending() const { return next_<pending_.size(); }
     const Packet& Front() const { return pending_[next_]; }

@@ -421,7 +421,13 @@ namespace witchcraft
                 }
             }
         }
-        link.WriteSkyState(sky);
+        // Minecraft keys saved digging by a world identity that survives restarts.
+        auto publishSky=[&] {
+            auto published=sky;
+            if(const auto persistent=PersistentWorld(sky.worldId)) published.worldId=persistent;
+            link.WriteSkyState(published);
+        };
+        publishSky();
         auto abortManualRender=[&] {
             if(!manualEnabled) return;
             if(playEnabled) play.Stop("avatar display unavailable; returning Geralt");
@@ -429,7 +435,7 @@ namespace witchcraft
             else pilot.Stop("avatar display unavailable; returning Geralt");
             PollManualInput(false);
             link.PushInput(skycraft::proto::kInReleaseAll,0);
-            sky.flags=skycraft::proto::kSkyMenuOpen;link.WriteSkyState(sky);
+            sky.flags=skycraft::proto::kSkyMenuOpen;publishSky();
             PublishPilotCommand({});
         };
         static bool loggedWaiting = false;

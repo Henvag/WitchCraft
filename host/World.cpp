@@ -602,6 +602,9 @@ float4 PSMain(VSOut i) : SV_Target
 					case skycraft::proto::kRenScene:
 						OnMesh(scene, a_data, a_bytes, true);
 						break;
+					case skycraft::proto::kRenDug:
+						ApplyDugPacket(a_data, a_bytes); // Cut from collision and occlusion.
+						break;
 					default:
 						break;
 					}

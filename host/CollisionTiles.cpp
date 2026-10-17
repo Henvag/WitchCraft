@@ -8,7 +8,7 @@
 
 namespace witchcraft {
 bool CollisionTiles::Prepare(const skycraft::proto::ColRegion& bounds,
-    const std::vector<skycraft::proto::ColTri>& triangles) {
+    const std::vector<skycraft::proto::ColTri>& triangles,const std::function<bool(int,int,int)>& dug) {
     using namespace skycraft::proto;
     const int lower[]{bounds.minX,bounds.minY,bounds.minZ};
     const int upper[]{bounds.maxX,bounds.maxY,bounds.maxZ};
@@ -17,7 +17,7 @@ bool CollisionTiles::Prepare(const skycraft::proto::ColRegion& bounds,
     for (int axis=0;axis<3;++axis)
         if (lower[axis]<-1000032||upper[axis]>1000032||upper[axis]<lower[axis]||
             std::int64_t(upper[axis])-lower[axis]>32) return false;
-    if (triangles.size()>2048) return false;
+    if (triangles.size()>8192) return false; // Dug ghosts and cut pieces add to the sampled 2k.
     std::map<Key,std::vector<ColTri>> tiles;
     // Empty voxel-region packets mark arrival for holdUntilReady. They do not
     // invent solid blocks. Include the whole sampled vertical range, including
@@ -45,6 +45,7 @@ bool CollisionTiles::Prepare(const skycraft::proto::ColRegion& bounds,
     }
     std::map<Key,std::vector<ColBlock>> voxelTiles;
     for(const auto& block:TerrainVoxels(bounds,triangles)) {
+        if(dug&&dug(block.x,block.y,block.z)) continue;
         Key key{static_cast<int>(std::floor(block.x/double(size))),
             static_cast<int>(std::floor(block.y/double(size))),static_cast<int>(std::floor(block.z/double(size)))};
         voxelTiles[key].push_back(block);

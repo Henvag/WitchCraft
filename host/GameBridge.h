@@ -79,6 +79,13 @@ struct OcclusionGeometry : DiagnosticWalls { std::uint64_t revision=0; };
 void PublishOcclusionGeometry(const DiagnosticWalls& geometry);
 bool ReadOcclusionGeometry(const GameFrame&,std::uint64_t knownRevision,OcclusionGeometry&);
 bool GameCollisionDrained(std::uint32_t epoch);
+// Session world -> identity that survives restarts (0: unavailable, no digging).
+void PublishPersistentWorld(std::uint32_t sessionWorld,std::uint32_t persistentWorld);
+std::uint32_t PersistentWorld(std::uint32_t sessionWorld);
+// Minecraft's dug cells (kRenDug) for the current persistent world.
+void ApplyDugPacket(const std::uint8_t* data,std::uint32_t bytes);
+bool DugCell(std::int32_t x,std::int32_t y,std::int32_t z);
+std::uint64_t DugRevision();
 void PublishGameControl(const GameControl& control);
 void PumpGameCollision();
 }
