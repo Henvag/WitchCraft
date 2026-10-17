@@ -390,7 +390,13 @@ namespace witchcraft
                         else link.PushInput(static_cast<skycraft::proto::InputType>(event.type),event.code,event.a,event.b,event.c);
                     }
                 }
-                if(lastPlayActive&&!play.Active()) link.PushInput(skycraft::proto::kInReleaseAll,0);
+                if(lastPlayActive&&!play.Active()) {
+                    link.PushInput(skycraft::proto::kInReleaseAll,0);
+                    // Do not strand a Minecraft screen in the hidden window.
+                    if(haveMc&&(mc.flags&skycraft::proto::kMcScreenOpen)) {
+                        link.PushInput(skycraft::proto::kInKey,41,1);link.PushInput(skycraft::proto::kInKey,41,0);
+                    }
+                }
                 const bool gui=(mc.flags&skycraft::proto::kMcScreenOpen)!=0;
                 if(play.Active()!=lastPlayActive||gui!=lastPlayGui||play.Keys()!=lastMovementKeys||now-lastPilotLog>=1000) {
                     char line[512]{};std::snprintf(line,sizeof(line),"MC play: active=%u gui=%u hidden=%u nativeFailed=%u moves=%u keys=%u lag=%.3f MC=(%.3f,%.3f,%.3f) native=(%.3f,%.3f,%.3f) reason=%s",play.Active()?1u:0u,gui?1u:0u,status.hidden?1u:0u,status.failed?1u:0u,status.moves,play.Keys(),play.FollowLag(),mc.curX,mc.curY,mc.curZ,frame.feet[0],frame.feet[1],frame.feet[2],play.Reason());LogLine(line);

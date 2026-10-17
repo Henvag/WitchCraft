@@ -29,9 +29,11 @@ struct ManualKeys {
         default:return 0;
         }
     }
+    // Escape outside a Minecraft screen is left to Witcher: its pause menu also
+    // reaches the game, ends play, and must not leave Minecraft's menu open.
     bool UiAllowed(unsigned vk) const {
         return guiMode||vk==0x74||vk=='E'||vk=='T'||vk=='Q'||vk=='F'||
-            (vk>='1'&&vk<='9')||vk==0x1b||vk==0x10||vk==0xa0||vk==0xa1||
+            (vk>='1'&&vk<='9')||vk==0x10||vk==0xa0||vk==0xa1||
             vk==0x11||vk==0xa2||vk==0xa3;
     }
     std::uint8_t movement=0;

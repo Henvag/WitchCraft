@@ -38,8 +38,12 @@ int main() {
     if(!play.Event('E',true,true,true,false,false)||play.uiCount!=1||play.uiEvents[0]!=(0x8000|8)) return 26;
     play.Event('E',true,true,true,false,false);if(play.uiCount!=1) return 27;
     play.Event('E',false,true,true,false,false);if(play.uiCount!=2||play.uiEvents[1]!=8) return 28;
-    play.Event(0x1b,true,true,true,false,false);if(play.stop||play.uiEvents[2]!=(0x8000|41)) return 29;
-    play.Event('9',true,true,true,false,false);if(play.uiEvents[3]!=(0x8000|38)) return 30;
+    // Escape outside a Minecraft screen goes to Witcher's menu, not Minecraft's.
+    play.Event(0x1b,true,true,true,false,false);if(play.stop||play.uiCount!=2) return 29;
+    play.Event(0x1b,false,true,true,false,false);
+    play.Event('9',true,true,true,false,false);if(play.uiEvents[2]!=(0x8000|38)) return 30;
+    ManualKeys screen;screen.playMode=true;screen.guiMode=true; // Escape still closes a Minecraft screen.
+    screen.Event(0x1b,true,true,true,false,false);if(screen.uiCount!=1||screen.uiEvents[0]!=(0x8000|41)) return 34;
     play.Event(0x77,true,true,true,false,false);if(!play.stop||play.stopSeen!=1) return 31;
     for(int i=0;i<100;++i) play.Event('E',i%2,true,true,false,false);
     if(!play.overflow||play.uiCount!=64) return 32;
