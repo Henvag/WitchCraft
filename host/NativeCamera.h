@@ -15,7 +15,9 @@ inline bool CameraPosition(const skycraft::proto::McState& pose,const float* gro
     if(pose.cameraMode==0) {
         result[0]=static_cast<float>(pose.x);result[1]=static_cast<float>(-pose.z);
         result[2]=static_cast<float>(pose.y+pose.eyeHeight);
-    } else if(pose.flags&skycraft::proto::kMcCanFly) {
+    } else {
+        result[0]+=static_cast<float>(pose.x-ground[0]);
+        result[1]+=static_cast<float>(-pose.z-ground[1]);
         result[2]+=static_cast<float>(pose.y-ground[2]);
     }
     for(int i=0;i<3;++i) if(!std::isfinite(result[i])||std::abs(result[i])>1000000) return false;

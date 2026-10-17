@@ -5,11 +5,12 @@
 
 namespace witchcraft {
 struct GroundPoint { float x=0, y=0, z=0, up=0; bool hit=false; };
-// A bounded diagnostic height patch. Centre samples reject holes/discontinuities
-// that a four-corner height interpolation would otherwise bridge over.
+// A bounded height patch. Centre samples reject holes/discontinuities while
+// independently supported wedges preserve measured ground near missing corners.
 class TerrainPatch {
 public:
     static constexpr int cells = 16, corners = 17 * 17, samples = corners + 16 * 16;
+    static constexpr float depth=24;
     void Begin(float x, float y, float z);
     void QueryPoint(int index, float& x, float& y) const;
     void Set(int index, const GroundPoint& point) { points_[index] = point; }

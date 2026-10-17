@@ -188,6 +188,7 @@ public final class SkyClient {
 		SkyDigClient.tick(minecraft);
 		freezeWhileUnlinked(minecraft);
 		holdUntilReady(minecraft);
+		TerrainGuard.tick(minecraft, sky, !linked || holdPos != null || teleportPending);
 		publishTick(minecraft);
 	}
 

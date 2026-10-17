@@ -55,9 +55,29 @@ bool CollisionTiles::Prepare(const skycraft::proto::ColRegion& bounds,
     std::set<Key> current;
     for(const auto& [key,mesh]:tiles) current.insert(key);
     for (const auto& key:resident_) tiles.try_emplace(key);
+    std::vector<Key> deliveryOrder;
+    deliveryOrder.reserve(tiles.size());
+    for(const auto& [key,mesh]:tiles) deliveryOrder.push_back(key);
+    auto distance=[&](const Key& key) {
+        double result=0;
+        for(int axis=0;axis<3;++axis) {
+            const double offset=key[axis]*double(size)+size*.5-
+                (lower[axis]+double(upper[axis]))*.5;
+            result+=offset*offset;
+        }
+        return result;
+    };
+    std::stable_sort(deliveryOrder.begin(),deliveryOrder.end(),[&](const Key& a,const Key& b) {
+        const bool currentA=current.contains(a),currentB=current.contains(b);
+        if(currentA!=currentB) return currentA; // Install the replacement before clearing old coverage.
+        const bool geometryA=!tiles.at(a).empty(),geometryB=!tiles.at(b).empty();
+        if(geometryA!=geometryB) return geometryA;
+        return distance(a)<distance(b); // Deliver support near the new player position first.
+    });
     std::vector<Packet> packets;
     packets.reserve(tiles.size()*2);
-    for (const auto& [key,mesh]:tiles) {
+    for (const auto& key:deliveryOrder) {
+        const auto& mesh=tiles.at(key);
         Packet packet{key,kColTris,static_cast<std::uint32_t>(mesh.size()),current.contains(key),{}};
         ColRegion region{key[0]*size,key[1]*size,key[2]*size,
             key[0]*size+size-1,key[1]*size+size-1,key[2]*size+size-1,bounds.epoch,packet.count};

@@ -1,5 +1,6 @@
 param([string]$BaseMod=(Join-Path $env:LOCALAPPDATA 'SkyCraft\Prism\instances\SkyCraft\.minecraft\mods\skycraft-0.1.2.jar'))
 $ErrorActionPreference='Stop'
+Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem
 $expected='EA429C73DCEC49D39B6A0BB9B17AD08A6B0290A39A96CCF6F6C07D581CF992D9'
 if((Get-FileHash -LiteralPath $BaseMod).Hash -ne $expected){throw 'Expected original SkyCraft 0.1.2. Pass -BaseMod pointing to its backed-up original JAR.'}
 $prismRoot=Join-Path $env:LOCALAPPDATA 'SkyCraft\Prism'
@@ -9,7 +10,7 @@ New-Item -ItemType Directory -Force -Path $classes | Out-Null
 $dependencies=@(Get-ChildItem -LiteralPath (Join-Path $prismRoot 'libraries') -Filter '*.jar' -Recurse -File | Where-Object {$_.FullName -notmatch 'natives-windows-(x86|arm64)'} | ForEach-Object {$_.FullName})
 $classpath=($dependencies+$BaseMod)-join ';'
 $arguments=@('--release','25','-classpath',('"'+$classpath.Replace('\','/')+'"'),'-d',('"'+$classes.Replace('\','/')+'"'))
-foreach($name in @('FrameExporter','PersistentOverlayReadback','SkyClient')) {
+foreach($name in @('FrameExporter','PersistentOverlayReadback','SkyClient','GroundRecovery','TerrainGuard')) {
     $source=Join-Path $PSScriptRoot "src\dev\skycraft\client\$name.java"
     $arguments+=('"'+$source.Replace('\','/')+'"')
 }
@@ -38,8 +39,8 @@ try {
         $b=$other.Open()
         try {
             $hash=[Security.Cryptography.SHA256]::Create()
-            $ha=[Convert]::ToHexString($hash.ComputeHash($a))
-            $hb=[Convert]::ToHexString($hash.ComputeHash($b))
+            $ha=[BitConverter]::ToString($hash.ComputeHash($a)).Replace('-','')
+            $hb=[BitConverter]::ToString($hash.ComputeHash($b)).Replace('-','')
             $hash.Dispose()
             if($ha -ne $hb){throw "Unrelated entry changed: $($entry.FullName)"}
         } finally {$a.Dispose();$b.Dispose()}

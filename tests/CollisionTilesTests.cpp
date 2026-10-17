@@ -65,7 +65,14 @@ int main() {
     Receive(tiles.Front(),receiver); tiles.Accepted();
     const ColRegion moved{40,-8,-16,56,16,16,7,0};
     Check(tiles.Prepare(moved,{}));
-    Drain(tiles,receiver); Check(receiver[accepted].empty());
+    bool removingOld=false;
+    while(tiles.Pending()) {
+        const auto& packet=tiles.Front();
+        if(!packet.retain) removingOld=true;
+        Check(!removingOld||!packet.retain); // New coverage arrives before trailing old tiles are removed.
+        Receive(packet,receiver);tiles.Accepted();
+    }
+    Check(removingOld&&receiver[accepted].empty());
     // Failed validation leaves pending work intact for the caller to fail closed.
     Check(tiles.Prepare(bounds,{crossing}));
     const auto pending=tiles.Front().bytes;
@@ -103,5 +110,20 @@ int main() {
     }
     Check(partial); // Missing terrain is not bridged into a full floor.
     Check(TerrainVoxels(bounds,{crossing}).empty()); // Untagged object/wall triangles are not filled beneath.
+    // Geometry at the new position has delivery priority over empty arrival
+    // markers and cleanup. A queue pause after the first pair retains real ground.
+    tiles.Reset();
+    const ColRegion deep{-8,-24,-8,8,3,8,7,2};
+    const ColTri near{{0,-1,0,1,-1,0,0,-1,1},kTriTerrain};
+    const ColTri far{{-8,-20,-8,-7,-20,-8,-8,-20,-7},kTriTerrain};
+    Check(tiles.Prepare(deep,{near,far}));
+    Check(tiles.Front().type==kColTris&&tiles.Front().count==1);
+    Check(tiles.Front().key==CollisionTiles::Key{0,-1,0});
+    const auto firstKey=tiles.Front().key;
+    Receive(tiles.Front(),receiver);tiles.Accepted();
+    Check(tiles.Front().type==kColRegion&&tiles.Front().key==firstKey);
+    Receive(tiles.Front(),receiver);tiles.Accepted();
+    Check(receiver[firstKey].size()==1&&receiver.known.contains(firstKey));
+    Drain(tiles,receiver);
     puts("collision cube lookup, negative boundaries, stale removal, interruption and validation checks passed");
 }

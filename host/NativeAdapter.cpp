@@ -59,11 +59,19 @@ void SampleTerrain(const native::Reader& reader,const native::Sample& sample,ULO
     using namespace skycraft::proto;
     if (!traceEnabled||sample.paused) return;
     auto& terrain=terrainSchedule.Patch();
+    float centre[3]{sample.feet[0],sample.feet[1],sample.feet[2]};
+    const auto pilot=ReadPilotCommand();
+    if(PlayEnabled()&&pilot.active&&pilot.world==worldSequence&&pilot.relocation==relocation&&
+        std::isfinite(pilot.followState.curX)&&std::isfinite(pilot.followState.curZ)&&
+        std::hypot(pilot.followState.curX-sample.feet[0],-pilot.followState.curZ-sample.feet[1])<=32) {
+        centre[0]=static_cast<float>(pilot.followState.curX);
+        centre[1]=static_cast<float>(-pilot.followState.curZ);
+    }
     const bool newWorld=terrainWorld!=worldSequence;
     if (terrainSchedule.BeginIfNeeded(worldSequence,relocation,
-        sample.feet[0],sample.feet[1],sample.feet[2],now,PlayEnabled())) {
-        walls.Begin(std::floor(sample.feet[0]),std::floor(sample.feet[1]),sample.feet[2]);
-        std::copy_n(sample.feet,3,wallOrigin); detailStarted=false; jobSamples=collisionSamples;
+        centre[0],centre[1],centre[2],now,PlayEnabled())) {
+        walls.Begin(std::floor(centre[0]),std::floor(centre[1]),centre[2]);
+        std::copy_n(centre,3,wallOrigin); detailStarted=false; jobSamples=collisionSamples;
         terrainIndex=terrainHits=wallHits=0; tileDone=false; packetsPrepared=false;
         terrainStarted=now; terrainSampled=0; terrainUpdates=0;
         if (newWorld) { terrainWorld=worldSequence; clearSent=false; collisionTiles.Reset(); }
@@ -210,7 +218,12 @@ void Observe(void* context) {
     native::Reader reader(imageBase, ReadMemory, nullptr);
     native::Sample sample{};
     GameFrame frame{};
-    if (!reader.Snapshot(sample) || sample.player != reinterpret_cast<std::uintptr_t>(context)) {
+    static ULONGLONG completeCameraAt=0;
+    bool sampled=reader.Snapshot(sample);
+    if(sampled) completeCameraAt=now;
+    else if(hadSample&&completeCameraAt&&reader.Snapshot(sample,false))
+        sampled=native::ReuseCamera(sample,previous,now-completeCameraAt);
+    if (!sampled || sample.player != reinterpret_cast<std::uintptr_t>(context)) {
         native::ApplyPilot(reader,imageBase,nullptr,worldSequence,terrainWorld,relocation,Log);
         frame.flags = kGameLoading | kGameScripted;
         WitchCraftSubmitFrame(&frame);
@@ -238,9 +251,12 @@ void Observe(void* context) {
         std::abs(sample.feet[0]-publishedCentre[0])<=4&&
         std::abs(sample.feet[1]-publishedCentre[1])<=4&&std::abs(sample.feet[2]-publishedCentre[2])<=2)
         frame.flags|=kGameDiagnosticPatch;
+    const auto pilot=ReadPilotCommand();
+    const double coverageX=pilot.active?pilot.followState.curX:sample.feet[0];
+    const double coverageY=pilot.active?-pilot.followState.curZ:sample.feet[1];
     if(PlayEnabled()&&havePublishedPatch&&publishedWorld==worldSequence&&publishedRelocation==relocation&&
-        std::abs(sample.feet[0]-publishedCentre[0])<=6&&
-        std::abs(sample.feet[1]-publishedCentre[1])<=6&&std::abs(sample.feet[2]-publishedCentre[2])<=2)
+        std::abs(coverageX-publishedCentre[0])<=6&&
+        std::abs(coverageY-publishedCentre[1])<=6&&std::abs(sample.feet[2]-publishedCentre[2])<=2)
         frame.flags|=kGamePlayPatch;
     if (sample.paused) frame.flags |= kGameMenu;
     frame.worldId = worldSequence; // Session-local identity, not a save binding.

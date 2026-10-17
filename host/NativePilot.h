@@ -3,6 +3,29 @@
 #include "GameBridge.h"
 #include "RenderTiming.h"
 namespace witchcraft::native {
+inline constexpr std::uint16_t kPilotHideReason=0x10;
+enum class PilotVisibility { Retain, Acquire, Reapply, GameOwned };
+inline PilotVisibility PilotVisibilityFor(bool owned,std::uint16_t reasons) {
+    if(owned) return reasons&kPilotHideReason?PilotVisibility::Retain:PilotVisibility::Reapply;
+    return reasons?PilotVisibility::GameOwned:PilotVisibility::Acquire;
+}
+inline bool PilotCommandFresh(const PilotCommand& command,std::uint64_t now) {
+    // Both camera and anchor use the same bounded grace period for a late
+    // overlay frame. A stopped publisher must never keep driving the player.
+    return command.publishedAt&&command.publishedAt<=now&&now-command.publishedAt<=1000;
+}
+class PilotRetryCadence {
+    unsigned failures_=0;
+    std::uint64_t next_=0;
+public:
+    void Reset() {failures_=0;next_=0;}
+    bool Due(std::uint64_t now) const {return now>=next_;}
+    void Completed(bool accepted,std::uint64_t now) {
+        if(accepted) {Reset();return;}
+        failures_=std::min(failures_+1,4u);
+        next_=now+std::min(100u,16u<<(failures_-1));
+    }
+};
 inline bool UseLatestFollowState(PilotCommand& command,const skycraft::proto::McState& latest) {
     using namespace skycraft::proto;
     if(!command.groundFollow||!command.interpolateFollow||
@@ -11,6 +34,9 @@ inline bool UseLatestFollowState(PilotCommand& command,const skycraft::proto::Mc
         latest.teleportAck!=command.followState.teleportAck||
         latest.frameCounter<command.followState.frameCounter||
         latest.tickQpc<command.followState.tickQpc) return false;
+    const double positions[]{latest.x,latest.y,latest.z,latest.prevX,latest.prevY,latest.prevZ,
+        latest.curX,latest.curY,latest.curZ};
+    for(const auto value:positions) if(!std::isfinite(value)||std::abs(value)>1000000) return false;
     command.followState=latest;
     return true;
 }
@@ -81,15 +107,16 @@ inline bool PilotPosition(const float* current,const double* mc,float* out) {
     }
     out[3]=1; return delta<=0.5625;
 }
-// Play mode catches up using small acknowledged engine steps. Diagnostic calls
-// retain their original exact-target bound above.
-inline bool PilotFollowPosition(const float* current,const double* mc,float* out) {
+// Play mode catches up using bounded engine steps. Camera translation is owned
+// by Minecraft, so an old native animation target does not gate the next step.
+inline bool PilotFollowPosition(const float* current,const double* mc,float* out,double maximumDistance=2) {
     const double converted[]{mc[0],-mc[2],mc[1]};double distance=0;
     for(int i=0;i<3;++i) {
         if(!std::isfinite(current[i])||!std::isfinite(converted[i])||std::abs(converted[i])>1000000) return false;
         distance+=std::pow(converted[i]-current[i],2);
     }
-    if(!std::isfinite(distance)||distance>4) return false;
+    if(!std::isfinite(maximumDistance)||maximumDistance<2||maximumDistance>32||
+        !std::isfinite(distance)||distance>maximumDistance*maximumDistance) return false;
     const double scale=distance>.25?.5/std::sqrt(distance):1;
     for(int i=0;i<3;++i) out[i]=static_cast<float>(current[i]+(converted[i]-current[i])*scale);
     out[3]=1;return true;

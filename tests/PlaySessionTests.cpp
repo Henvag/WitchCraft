@@ -22,6 +22,29 @@ struct Fixture {
     void Move(double x) {game.feet[0]=mc.x=mc.curX=x;}
 };
 int main() {
+    Fixture continuous;continuous.Start();
+    auto updateContinuous=[&](unsigned now,unsigned keys=0,bool stop=false) {
+        ++continuous.mc.frameCounter;
+        continuous.play.Update(&continuous.game,&continuous.mc,true,true,true,now,continuous.sky,keys,stop,true,true,true);
+    };
+    // Camera-enabled play is not bounded by the old diagnostic jump/fall timers.
+    continuous.mc.flags&=~kMcOnGround;continuous.mc.curY=4;
+    updateContinuous(2700,17);updateContinuous(10000,17);
+    REQUIRE(continuous.play.Active()&&continuous.play.Keys()==17);
+    continuous.mc.flags|=kMcOnGround;continuous.mc.curY=20;
+    updateContinuous(11000);REQUIRE(continuous.play.Active()); // Tall Minecraft platform.
+    continuous.mc.curX=3;updateContinuous(11100,1);
+    REQUIRE(continuous.play.Active()&&!continuous.play.Keys()&&(continuous.sky.flags&kSkyHoldPhysics));
+    updateContinuous(17000,1);REQUIRE(continuous.play.Active()); // Keep avatar during recovery.
+    continuous.game.feet[0]=2.8;updateContinuous(17100,1);
+    REQUIRE(continuous.play.Active()&&continuous.play.Keys()==1&&!(continuous.sky.flags&kSkyHoldPhysics));
+    continuous.game.flags&=~kGameDiagnosticPatch;updateContinuous(18000);updateContinuous(24000);
+    REQUIRE(continuous.play.Active()&&(continuous.sky.flags&kSkyHoldPhysics));
+    continuous.mc.flags|=kMcScreenOpen;updateContinuous(24100);
+    REQUIRE(continuous.play.Active()&&(continuous.sky.flags&kSkyInGame)&&!(continuous.sky.flags&kSkyMenuOpen));
+    continuous.game.flags|=kGamePlayPatch;updateContinuous(24200);
+    REQUIRE(!(continuous.sky.flags&kSkyHoldPhysics));
+    updateContinuous(24300,0,true);REQUIRE(!continuous.play.Active());
     PlayToggleKey toggle;
     REQUIRE(toggle.Update(true,true));REQUIRE(!toggle.Update(true,true));
     REQUIRE(!toggle.Update(false,true));REQUIRE(toggle.Update(true,true));

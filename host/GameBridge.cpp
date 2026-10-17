@@ -85,7 +85,7 @@ void PublishPilotCommand(const PilotCommand& value) {
 }
 PilotCommand ReadPilotCommand() {
     std::lock_guard lock(mutex); auto result=pilotCommand;
-    if(!pilotTime||::GetTickCount64()-pilotTime>250) result.active=false;
+    if(!pilotTime||::GetTickCount64()-pilotTime>(result.cameraOwned?1000:250)) result.active=false;
     return result;
 }
 void PublishPilotStatus(const PilotStatus& value) { std::lock_guard lock(mutex);pilotStatus=value; }

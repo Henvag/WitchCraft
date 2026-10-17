@@ -93,5 +93,8 @@ int main() {
     Check(!ReadPilotCommand().active,"Invalid pilot position disables native action");
     command.feet[0]=1;PublishPilotCommand(command);::Sleep(270);
     Check(!ReadPilotCommand().active,"Expired pilot command disables native action request");
+    command.cameraOwned=true;PublishPilotCommand(command);::Sleep(270);
+    Check(ReadPilotCommand().active,"Continuous camera and anchor share a bounded late-frame grace period");
+    ::Sleep(750);Check(!ReadPilotCommand().active,"Continuous grace still expires when the host stops");
     std::cout << "Bridge ABI, validation, queue order, backpressure, and timeout checks passed\n";
 }

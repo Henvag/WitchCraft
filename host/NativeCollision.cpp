@@ -91,7 +91,7 @@ TraceStatus TraceSurface(const Reader& r,std::uintptr_t base,const Sample& sampl
 TraceStatus TraceGround(const Reader& r,std::uintptr_t base,const Sample& sample,
     float x,float y,float height,GroundPoint& result) {
     result={x,y,0,0,false};
-    const float from[]{x,y,height+2},to[]{x,y,height-8};
+    const float from[]{x,y,height+2},to[]{x,y,height-TerrainPatch::depth};
     SurfacePoint surface{};
     const auto status=TraceSurface(r,base,sample,from,to,surface);
     if (status==TraceStatus::hit) result={surface.position[0],surface.position[1],surface.position[2],surface.normal[2],true};

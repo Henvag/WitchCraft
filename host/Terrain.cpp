@@ -26,7 +26,7 @@ bool TerrainPatch::Contains(float x, float y,float margin) const {
         x>=x_+margin && x<=x_+cells-margin && y>=y_+margin && y<=y_+cells-margin;
 }
 skycraft::proto::ColRegion TerrainPatch::Region(std::uint32_t epoch, std::uint32_t count) const {
-    return {static_cast<int>(x_),static_cast<int>(std::floor(z_-8)),static_cast<int>(-y_-cells),
+    return {static_cast<int>(x_),static_cast<int>(std::floor(z_-depth)),static_cast<int>(-y_-cells),
         static_cast<int>(x_+cells),static_cast<int>(std::ceil(z_+2)),static_cast<int>(-y_),epoch,count};
 }
 std::vector<skycraft::proto::ColTri> TerrainPatch::Triangles() const {
@@ -36,6 +36,17 @@ std::vector<skycraft::proto::ColTri> TerrainPatch::Triangles() const {
     auto valid=[](const GroundPoint& p) {
         return p.hit && std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z) &&
             std::isfinite(p.up) && p.up>=0.5f && p.up<=1.1f;
+    };
+    auto supported=[&](const GroundPoint& a,const GroundPoint& b,const GroundPoint& c) {
+        if(!valid(a)||!valid(b)||!valid(c)) return false;
+        const double ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z;
+        const double vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z;
+        const double nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+        const double length=std::sqrt(nx*nx+ny*ny+nz*nz);
+        // Test the measured triangle's slope, rather than the entire square's
+        // height range. A walkable diagonal slope can span over a metre across
+        // its opposite corners without containing a cliff.
+        return length>1e-6&&nz/length>=0.5;
     };
     auto add=[&](const GroundPoint& a,const GroundPoint& b,const GroundPoint& c) {
         ColTri tri{};
@@ -53,11 +64,19 @@ std::vector<skycraft::proto::ColTri> TerrainPatch::Triangles() const {
         const auto& a=points_[y*17+x]; const auto& b=points_[y*17+x+1];
         const auto& c=points_[(y+1)*17+x]; const auto& d=points_[(y+1)*17+x+1];
         const auto& centre=points_[corners+y*16+x];
-        if (!valid(a)||!valid(b)||!valid(c)||!valid(d)||!valid(centre)) continue;
-        const auto lo=std::min({a.z,b.z,c.z,d.z}), hi=std::max({a.z,b.z,c.z,d.z});
-        // Actual centre hit must agree with the chosen diagonal's surface.
-        if (hi-lo>1.0f || std::abs(centre.z-(b.z+c.z)*0.5f)>0.15f) continue;
-        add(a,b,c); add(b,d,c);
+        if(!valid(centre)) continue;
+        if(supported(a,b,c)&&supported(b,d,c)&&
+            std::abs(centre.z-(b.z+c.z)*0.5f)<=0.15f) {
+            add(a,b,c); add(b,d,c);
+        } else {
+            // Preserve each independently measured wedge. One missing or
+            // discontinuous corner must not erase support on the opposite half
+            // of the square; missing centres still leave real holes open.
+            const GroundPoint* ring[]{&a,&b,&d,&c,&a};
+            for(int edge=0;edge<4;++edge)
+                if(supported(*ring[edge],*ring[edge+1],centre))
+                    add(*ring[edge],*ring[edge+1],centre);
+        }
     }
     return out;
 }
