@@ -20,6 +20,11 @@ std::mutex frontLock;
 float frontForward[3]{};
 std::uint64_t frontAt=0;
 bool flippedLast=false; // Director forward then shows the front camera, not the look.
+// Minecraft-style look owned by the hook once the rotation layout is verified.
+float lookAngles[3]{};
+std::uint64_t lookAt=0;
+std::atomic<long> lookDx=0,lookDy=0;
+std::atomic<std::uint64_t> lookOwnedAt=0;
 bool ReadMemory(void*,std::uintptr_t address,void* out,std::size_t bytes) {
     SIZE_T got=0;return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<void*>(address),out,bytes,&got)&&got==bytes;
 }
@@ -56,12 +61,25 @@ bool CameraData(void* camera,void* data) {
         flippedLast=false;
     }
     float front[3]{},frontAngles[3]{},look[3]{};
-    if(mc.cameraMode==2&&probe.Ready()&&FrontCamera(pose,angles,probe.Locked(),front,frontAngles,look)) {
-        for(int i=0;i<3;++i) {values[i]=front[i];angles[i]=frontAngles[i];position[i]=front[i];}
-        {std::lock_guard lock(frontLock);for(int i=0;i<3;++i) frontForward[i]=-look[i];frontAt=GetTickCount64();}
+    bool placed=false;
+    const auto tick=GetTickCount64();
+    if(probe.Ready()) {
+        // Own the look: start from Witcher's current view, then apply raw mouse
+        // movement with Minecraft's sensitivity and pitch range.
+        if(!lookAt||tick-lookAt>500) for(int i=0;i<3;++i) lookAngles[i]=angles[i];
+        ApplyLook(lookAngles,probe.Locked(),static_cast<float>(lookDx.exchange(0)),static_cast<float>(lookDy.exchange(0)),mc.sensitivity);
+        lookAt=tick;lookOwnedAt=tick;
+        for(int i=0;i<3;++i) angles[i]=lookAngles[i];
+        if(mc.cameraMode!=0&&DetachedCamera(pose,angles,probe.Locked(),mc.cameraMode==2,front,frontAngles,look)) {
+            for(int i=0;i<3;++i) {values[i]=front[i];angles[i]=frontAngles[i];position[i]=front[i];}
+            placed=true;
+        }
+    }
+    if(placed&&mc.cameraMode==2) {
+        {std::lock_guard lock(frontLock);for(int i=0;i<3;++i) frontForward[i]=-look[i];frontAt=tick;}
         flippedLast=true;
     } else flippedLast=false;
-    if(flippedLast||CameraPosition(pose,sample.feet,values,position)) {
+    if(placed||CameraPosition(pose,sample.feet,values,position)) {
         for(int i=0;i<3;++i) values[i]=position[i];
         if(mc.cameraMode==0) {values[0x34/4]=.05f;static_cast<unsigned char*>(data)[0x3c]=1;}
         static ULONGLONG lastLog=0;static unsigned applied=0;
@@ -76,6 +94,11 @@ bool CameraData(void* camera,void* data) {
 }
 }
 bool CameraReady() {return ready.load();}
+bool AddLookDelta(long dx,long dy) {
+    const auto at=lookOwnedAt.load();
+    if(!at||GetTickCount64()-at>200) return false;
+    lookDx+=dx;lookDy+=dy;return true;
+}
 bool FrontViewReady() {return ready.load()&&frontReady.load();}
 bool FrontViewForward(float* forward,std::uint64_t now,std::uint64_t maxAgeMs) {
     std::lock_guard lock(frontLock);

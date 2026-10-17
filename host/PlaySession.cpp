@@ -46,8 +46,12 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
             else if(followLag_>32||std::abs(mc->curY-nativeGround_)>256) Stop("position outside native streaming/camera range");
             if(mc->frameCounter!=frame_) {frame_=mc->frameCounter;freshAt_=now;}
             if(now-freshAt_>1000) Stop("Minecraft position reports stalled");
-            if(!catchingUp_&&followLag_>1.25) catchingUp_=true;
-            else if(catchingUp_&&followLag_<.5) catchingUp_=false;
+            // The camera and terrain sampling follow Minecraft itself, so the
+            // hidden anchor may trail by several metres (it is blocked by native
+            // obstacles Minecraft walks or flies over). Only hold Minecraft when
+            // the anchor falls far enough behind to threaten streaming.
+            if(!catchingUp_&&followLag_>12) catchingUp_=true;
+            else if(catchingUp_&&followLag_<4) catchingUp_=false;
             // Flight or gliding well above the native ground anchor does not
             // need fresh support underneath; low flight and landings still wait.
             const bool airborne=(mc->flags&(kMcFlying|kMcFallFlying))&&mc->curY-nativeGround_>6;

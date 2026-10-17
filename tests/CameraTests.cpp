@@ -77,4 +77,19 @@ int main() {
     front.y=std::numeric_limits<double>::quiet_NaN();
     if(FrontCamera(front,angles,learned,position,turned,look)) return 22;
     if(FrontCamera(pose,angles,AngleLayout{},position,turned,look)) return 23;
+    // Minecraft-style look: right turns clockwise, mouse down looks down, and
+    // pitch reaches straight up/down instead of Witcher's clamp.
+    const AngleLayout live{1,2,1,1,0}; // Verified in game: (roll, pitch, yaw).
+    float turn[3]{0,-10,30},before[3]{},after[3]{};
+    AngleForward(turn,live,before);
+    if(!ApplyLook(turn,live,100,0,.5f)) return 24;
+    AngleForward(turn,live,after);
+    if(before[0]*after[1]-before[1]*after[0]>=0) return 25; // Clockwise seen from above.
+    ApplyLook(turn,live,0,100000,.5f);if(std::abs(turn[1]+89.5f)>1e-3f) return 26;
+    ApplyLook(turn,live,0,-200000,.5f);if(std::abs(turn[1]-89.5f)>1e-3f) return 27;
+    if(std::abs(LookDegreesPerCount(.5f)-.5f*.5f*.5f*1.2f)>1e-6f) return 28;
+    // The behind view sits Minecraft's camera distance back along the look.
+    front.y=60;front.cameraMode=1;front.cameraDistance=4;
+    if(!DetachedCamera(front,angles,learned,false,position,turned,look)) return 29;
+    for(int i=0;i<3;++i) if(std::abs(position[i]-(eye[i]-look[i]*4))>.0001f||turned[i]!=angles[i]) return 30;
 }

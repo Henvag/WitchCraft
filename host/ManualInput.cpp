@@ -1,6 +1,7 @@
 #include "Input.h"
 #include "ManualKeys.h"
 #include "ManualGameInput.h"
+#include "NativeCamera.h"
 #include <mutex>
 #include <algorithm>
 #include <vector>
@@ -94,6 +95,10 @@ bool ManualRawMouse(RAWMOUSE& mouse) {
     if(capture&&(flags&RI_MOUSE_WHEEL)) Queue(skycraft::proto::kInScroll,0,static_cast<SHORT>(mouse.usButtonData));
     if(capture||owned) {mouse.usButtonFlags=0;mouse.usButtonData=0;}
     if(capture&&gui) {mouse.lLastX=0;mouse.lLastY=0;}
+    // Outside Minecraft screens the camera hook owns the look once verified;
+    // Witcher's camera must not also turn (and clamp) with the same movement.
+    else if(capture&&!(mouse.usFlags&MOUSE_MOVE_ABSOLUTE)&&(mouse.lLastX||mouse.lLastY)&&
+        native::AddLookDelta(mouse.lLastX,mouse.lLastY)) {mouse.lLastX=0;mouse.lLastY=0;}
     return true;
 }
 bool ManualRawKey(unsigned vk,bool down) {

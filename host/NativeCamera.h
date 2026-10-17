@@ -79,23 +79,47 @@ public:
         return Ready();
     }
 };
-// Minecraft's front F5 view: from the eye, Minecraft's camera distance along the
-// look direction, turned to face back at the player (yaw + 180, pitch mirrored).
-inline bool FrontCamera(const skycraft::proto::McState& pose,const float* angles,const AngleLayout& layout,
-    float* position,float* outAngles,float* lookForward) {
+// Minecraft's detached F5 views: Minecraft's camera distance behind the eye along
+// the look, or in front of it turned to face back (yaw + 180, pitch mirrored).
+inline bool DetachedCamera(const skycraft::proto::McState& pose,const float* angles,const AngleLayout& layout,
+    bool front,float* position,float* outAngles,float* lookForward) {
     if(!std::isfinite(pose.x)||!std::isfinite(pose.y)||!std::isfinite(pose.z)||
         !std::isfinite(pose.eyeHeight)||pose.eyeHeight<0||pose.eyeHeight>3) return false;
     if(!AngleForward(angles,layout,lookForward)) return false;
     const float distance=std::isfinite(pose.cameraDistance)&&pose.cameraDistance>.3f&&pose.cameraDistance<=8?pose.cameraDistance:4;
     const float eye[]{static_cast<float>(pose.x),static_cast<float>(-pose.z),static_cast<float>(pose.y+pose.eyeHeight)};
     for(int i=0;i<3;++i) {
-        position[i]=eye[i]+lookForward[i]*distance;outAngles[i]=angles[i];
+        position[i]=eye[i]+lookForward[i]*(front?distance:-distance);outAngles[i]=angles[i];
         if(!std::isfinite(position[i])||std::abs(position[i])>1000000) return false;
     }
-    outAngles[layout.yaw]+=180;outAngles[layout.pitch]=-outAngles[layout.pitch];
+    if(front) {outAngles[layout.yaw]+=180;outAngles[layout.pitch]=-outAngles[layout.pitch];}
+    return true;
+}
+inline bool FrontCamera(const skycraft::proto::McState& pose,const float* angles,const AngleLayout& layout,
+    float* position,float* outAngles,float* lookForward) {
+    return DetachedCamera(pose,angles,layout,true,position,outAngles,lookForward);
+}
+// Minecraft's mouse look (MouseHandler): f = sensitivity * 0.6 + 0.2, and each
+// count turns f^3 * 8 * 0.15 degrees. Applied to the camera's own angles so the
+// view is not limited by Witcher's pitch clamp.
+inline float LookDegreesPerCount(float sensitivity) {
+    const float s=std::isfinite(sensitivity)?std::fmin(1.f,std::fmax(0.f,sensitivity)):.5f;
+    const float f=s*.6f+.2f;return f*f*f*1.2f;
+}
+inline bool ApplyLook(float* angles,const AngleLayout& layout,float dx,float dy,float sensitivity) {
+    if(!layout.Valid()||!std::isfinite(dx)||!std::isfinite(dy)) return false;
+    const float k=LookDegreesPerCount(sensitivity);
+    // Right turns clockwise seen from above (heading decreases); forward mouse looks up.
+    float yaw=angles[layout.yaw]-dx*k*layout.yawSign;
+    if(std::abs(yaw)>36000) yaw=std::fmod(yaw,360.f);
+    const float pitch=std::fmin(89.5f,std::fmax(-89.5f,angles[layout.pitch]*layout.pitchSign-dy*k));
+    angles[layout.yaw]=yaw;angles[layout.pitch]=pitch*layout.pitchSign;
     return true;
 }
 bool CameraReady();
+// Raw mouse movement for the camera hook while it owns the look (true: consumed,
+// so Witcher's own camera must not also turn).
+bool AddLookDelta(long dx,long dy);
 // True once the rotation layout is verified, so Minecraft's front view can be shown.
 bool FrontViewReady();
 // The flipped camera forward (Witcher coordinates) most recently produced by the

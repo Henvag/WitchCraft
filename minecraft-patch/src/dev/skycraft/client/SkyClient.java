@@ -195,6 +195,7 @@ public final class SkyClient {
 		freezeWhileUnlinked(minecraft);
 		holdUntilReady(minecraft);
 		TerrainGuard.tick(minecraft, sky, !linked || holdPos != null || teleportPending);
+		swingWhileDigging(minecraft);
 		publishTick(minecraft);
 	}
 
@@ -258,6 +259,22 @@ public final class SkyClient {
 		mc.bobO = bob ? avatar.getInterpolatedBob(0.0F) : 0.0F;
 		mc.bob = bob ? avatar.getInterpolatedBob(1.0F) : 0.0F;
 		SkyLink.writeMcState(mc);
+	}
+
+	/**
+	 * WitchCraft: vanilla only swings while it is breaking a real block. Keep the arm moving while
+	 * the attack button digs into Witcher ground (SkyDigClient), as it does for Minecraft blocks.
+	 */
+	private static void swingWhileDigging(Minecraft minecraft) {
+		LocalPlayer player = minecraft.player;
+		if (player == null || minecraft.gui.screen() != null || !minecraft.options.keyAttack.isDown()) {
+			return;
+		}
+		if (minecraft.hitResult instanceof dev.skycraft.world.SkyClip.SkyrimHitResult result
+			&& result.hit.tri() != null && result.hit.tri().diggable) {
+			var held = player.getItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND);
+			player.swing(net.minecraft.world.InteractionHand.MAIN_HAND, held.getAttackAnimation(), false);
+		}
 	}
 
 	/** Freeze the player until Skyrim's collision around them has arrived. */

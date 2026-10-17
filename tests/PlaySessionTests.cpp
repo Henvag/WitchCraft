@@ -33,10 +33,12 @@ int main() {
     REQUIRE(continuous.play.Active()&&continuous.play.Keys()==17);
     continuous.mc.flags|=kMcOnGround;continuous.mc.curY=20;
     updateContinuous(11000);REQUIRE(continuous.play.Active()); // Tall Minecraft platform.
-    continuous.mc.curX=3;updateContinuous(11100,1);
+    continuous.mc.curX=3;updateContinuous(11050,1); // A few metres of anchor lag keeps playing.
+    REQUIRE(continuous.play.Active()&&continuous.play.Keys()==1&&!(continuous.sky.flags&kSkyHoldPhysics));
+    continuous.mc.curX=13;updateContinuous(11100,1);
     REQUIRE(continuous.play.Active()&&!continuous.play.Keys()&&(continuous.sky.flags&kSkyHoldPhysics));
     updateContinuous(17000,1);REQUIRE(continuous.play.Active()); // Keep avatar during recovery.
-    continuous.game.feet[0]=2.8;updateContinuous(17100,1);
+    continuous.game.feet[0]=10;updateContinuous(17100,1);
     REQUIRE(continuous.play.Active()&&continuous.play.Keys()==1&&!(continuous.sky.flags&kSkyHoldPhysics));
     continuous.game.flags&=~kGameDiagnosticPatch;updateContinuous(18000);updateContinuous(24000);
     REQUIRE(continuous.play.Active()&&(continuous.sky.flags&kSkyHoldPhysics));
