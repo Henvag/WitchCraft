@@ -8,6 +8,7 @@
 #include "NativeWater.h"
 #include "Digging.h"
 #include "ScriptBridgeNative.h"
+#include "ViewDepth.h"
 #include <string>
 #include "Link.h"
 #include "RenderTiming.h"
@@ -58,6 +59,39 @@ void Log(const char* text);
 bool PlayEnabled() {
     static const bool enabled=[] {wchar_t v[2]{};return GetEnvironmentVariableW(L"WITCHCRAFT_PLAY",v,2)&&v[0]==L'1';}();
     return enabled;
+}
+// Coarse scene depth along the camera's own view, refreshed every few frames.
+void SampleViewDepth(const native::Reader& reader,const native::Sample& sample) {
+    static ViewDepthGrid grid;static int index=-1;static std::uint32_t world=0,moved=0;
+    static float anchor[3]{};
+    if(!traceEnabled||!PlayEnabled()||sample.paused) return;
+    if(index<0) {
+        if(!grid.Begin(sample.camera,sample.forward,sample.rawFov,16.f/9)) return;
+        index=0;world=worldSequence;moved=relocation;std::copy_n(sample.feet,3,anchor);
+    }
+    if(world!=worldSequence||moved!=relocation) {index=-1;return;}
+    LARGE_INTEGER start{},frequency{},current{};
+    ::QueryPerformanceCounter(&start);::QueryPerformanceFrequency(&frequency);
+    for(int budget=0;budget<96&&index<ViewDepthGrid::count;++budget) {
+        float from[3]{},to[3]{};grid.QueryRay(index,from,to);
+        SurfacePoint surface{};
+        const auto status=native::TraceSurface(reader,imageBase,sample,from,to,surface);
+        if(status==native::TraceStatus::busy) break;
+        bool hit=status==native::TraceStatus::hit;
+        if(hit) {
+            const float* p=surface.position;
+            // The hidden Geralt anchor stands where Minecraft's player is drawn,
+            // and dug cells are holes Minecraft draws; neither may hide anything.
+            if(std::hypot(p[0]-anchor[0],p[1]-anchor[1])<1.2f&&p[2]>anchor[2]-.3f&&p[2]<anchor[2]+2.4f) hit=false;
+            else if(DugCell(static_cast<int>(std::floor(p[0])),static_cast<int>(std::floor(p[2])),static_cast<int>(std::floor(-p[1])))) hit=false;
+        }
+        grid.Set(index++,hit,surface.position);
+        ::QueryPerformanceCounter(&current);
+        if((current.QuadPart-start.QuadPart)*2000>=frequency.QuadPart) break; // 0.5 ms per frame
+    }
+    if(index<ViewDepthGrid::count) return;
+    PublishViewOcclusion({worldSequence,terrainWorld,relocation,grid.Triangles()});
+    index=-1;
 }
 // CWorld's depot path String (TDynArray<wchar_t>: data at +0x5430, count at
 // +0x5438), as read by its GetDepotPath script thunk at RVA 0x22a1190.
@@ -355,6 +389,7 @@ void Observe(void* context) {
     frame.verticalFov = sample.rawFov; // Provisional; rendering is disabled.
     WitchCraftSubmitFrame(&frame);
     SampleWater(reader,sample,now);
+    SampleViewDepth(reader,sample);
     script::InstallScriptBridge(imageBase,Log);
     native::ApplyPilot(reader,imageBase,&sample,worldSequence,terrainWorld,relocation,Log);
     if (!hadSample || now - lastLog >= 3000) {

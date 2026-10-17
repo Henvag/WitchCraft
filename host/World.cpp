@@ -164,6 +164,9 @@ float4 PSMain(VSOut i) : SV_Target
 		Mesh occlusion;
 		std::uint64_t occlusionRevision=0;
 		UINT occlusionCount=0;
+		Mesh viewOcclusion;
+		std::uint64_t viewOcclusionRevision=0;
+		UINT viewOcclusionCount=0;
 		ID3D11BlendState*       blend = nullptr;
 		ID3D11RasterizerState*  raster = nullptr;
 		ID3D11Texture2D*        color = nullptr;
@@ -789,6 +792,41 @@ float4 PSMain(VSOut i) : SV_Target
 			if(!avatarOnly) DrawMesh(a_cam, scene, scene.origin[0], scene.origin[1], scene.origin[2], a_blended);
 		}
 
+		// Camera-ray scene depth: buildings and other native collision farther away
+		// than the sampled terrain patch, depth only like DrawOcclusion.
+		void DrawViewOcclusion(const Camera& camera,const GameFrame* game) {
+			OcclusionGeometry geometry;
+			if(!game||!ReadViewOcclusion(*game,viewOcclusionRevision,geometry)) {
+				Release(viewOcclusion.vb);viewOcclusionRevision=0;viewOcclusionCount=0;return;
+			}
+			if(geometry.revision&&geometry.revision!=viewOcclusionRevision) {
+				const auto vertices=OcclusionVertices(geometry.triangles,viewOcclusion.origin);
+				ID3D11Buffer* buffer=nullptr;
+				if(!vertices.empty()) {
+					D3D11_BUFFER_DESC desc{};desc.ByteWidth=static_cast<UINT>(vertices.size()*sizeof(Vertex));
+					desc.Usage=D3D11_USAGE_IMMUTABLE;desc.BindFlags=D3D11_BIND_VERTEX_BUFFER;
+					D3D11_SUBRESOURCE_DATA initial{vertices.data(),0,0};
+					if(FAILED(device->CreateBuffer(&desc,&initial,&buffer))) return;
+				}
+				Release(viewOcclusion.vb);viewOcclusion.vb=buffer;viewOcclusionCount=static_cast<UINT>(vertices.size());
+				viewOcclusionRevision=geometry.revision;
+			}
+			if(!viewOcclusion.vb||!viewOcclusionCount||!occlusionRaster) return;
+			D3D11_MAPPED_SUBRESOURCE mapped{};
+			if(FAILED(context->Map(frameCb,0,D3D11_MAP_WRITE_DISCARD,0,&mapped))) return;
+			auto* frame=static_cast<FrameCB*>(mapped.pData);
+			std::memcpy(frame->viewProj,camera.viewProj,sizeof(frame->viewProj));
+			std::memset(frame->mode,0,sizeof(frame->mode));context->Unmap(frameCb,0);
+			SetOffset(camera,viewOcclusion.origin[0],viewOcclusion.origin[1],viewOcclusion.origin[2]);
+			context->OMSetRenderTargets(0,nullptr,dsv);
+			context->OMSetDepthStencilState(depthWrite,0);
+			context->RSSetState(occlusionRaster);context->PSSetShader(nullptr,nullptr,0);
+			const UINT stride=sizeof(Vertex),zero=0;
+			context->IASetVertexBuffers(0,1,&viewOcclusion.vb,&stride,&zero);context->Draw(viewOcclusionCount,0);
+			context->OMSetRenderTargets(1,&rtv,dsv);
+			context->RSSetState(raster);context->PSSetShader(ps,nullptr,0);
+		}
+
 		void DrawOcclusion(const Camera& camera,const GameFrame* game) {
 			OcclusionGeometry geometry;
 			if(!game||!ReadOcclusionGeometry(*game,occlusionRevision,geometry)) {
@@ -857,7 +895,7 @@ float4 PSMain(VSOut i) : SV_Target
 			context->PSSetConstantBuffers(0, 1, &frameCb);
 			ID3D11SamplerState* samplers[] = { mipSampler, pointSampler };
 			context->PSSetSamplers(0, 2, samplers);
-			if(!avatarOnly) DrawOcclusion(cam,a_game);
+			if(!avatarOnly) {DrawOcclusion(cam,a_game);DrawViewOcclusion(cam,a_game);}
 			DrawPass(cam, a_mc, false,avatarOnly);
 			DrawPass(cam, a_mc, true,avatarOnly);
 			context->OMSetRenderTargets(0, nullptr, nullptr);

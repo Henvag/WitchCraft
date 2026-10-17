@@ -130,6 +130,18 @@ bool DugCell(std::int32_t x,std::int32_t y,std::int32_t z) {
     return persistentWorld&&dugStore.Contains({x,y,z});
 }
 std::uint64_t DugRevision() {std::lock_guard lock(digLock);return dugStore.Revision();}
+namespace {OcclusionGeometry viewOcclusion;}
+void PublishViewOcclusion(const DiagnosticWalls& geometry) {
+    std::lock_guard lock(mutex);
+    static_cast<DiagnosticWalls&>(viewOcclusion)=geometry;
+    if(++viewOcclusion.revision==0) ++viewOcclusion.revision;
+}
+bool ReadViewOcclusion(const GameFrame& frame,std::uint64_t knownRevision,OcclusionGeometry& out) {
+    std::lock_guard lock(mutex);
+    if(!viewOcclusion.revision||frame.worldId!=viewOcclusion.world||frame.relocation!=viewOcclusion.relocation) return false;
+    if(knownRevision!=viewOcclusion.revision) out=viewOcclusion;
+    return true;
+}
 void PublishOcclusionGeometry(const DiagnosticWalls& geometry) {
     std::lock_guard lock(mutex);
     static_cast<DiagnosticWalls&>(occlusionGeometry)=geometry;

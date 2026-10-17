@@ -78,6 +78,9 @@ bool ReadDiagnosticWalls(const GameFrame& frame,DiagnosticWalls& walls);
 struct OcclusionGeometry : DiagnosticWalls { std::uint64_t revision=0; };
 void PublishOcclusionGeometry(const DiagnosticWalls& geometry);
 bool ReadOcclusionGeometry(const GameFrame&,std::uint64_t knownRevision,OcclusionGeometry&);
+// Coarse camera-ray scene depth (buildings and other native collision).
+void PublishViewOcclusion(const DiagnosticWalls& geometry);
+bool ReadViewOcclusion(const GameFrame&,std::uint64_t knownRevision,OcclusionGeometry&);
 bool GameCollisionDrained(std::uint32_t epoch);
 // Session world -> identity that survives restarts (0: unavailable, no digging).
 void PublishPersistentWorld(std::uint32_t sessionWorld,std::uint32_t persistentWorld);
