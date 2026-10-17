@@ -145,7 +145,14 @@ void SampleWater(const native::Reader& reader,const native::Sample& sample,ULONG
     if(pilot.active&&pilot.world==worldSequence&&std::isfinite(pilot.followState.curX)&&std::isfinite(pilot.followState.curZ)&&
         std::hypot(pilot.followState.curX-x,pilot.followState.curZ-z)<=32) {x=pilot.followState.curX;z=pilot.followState.curZ;}
     const auto persistent=PersistentWorld(worldSequence);
-    const auto grid=BuildWaterGrid(x,z,persistent?persistent:worldSequence,[&](float wx,float wy) {return level(reinterpret_cast<void*>(water),wx,wy);});
+    // The global water reports the sea plane under hills too. The native anchor
+    // stands on (or swims at) Witcher's own surface, so water far below it is
+    // under land: drop it rather than drowning Minecraft inside the ground.
+    const float landAbove=sample.feet[2]-2.5f;
+    const auto grid=BuildWaterGrid(x,z,persistent?persistent:worldSequence,[&](float wx,float wy) {
+        const float h=level(reinterpret_cast<void*>(water),wx,wy);
+        return h<landAbove?kNativeNoWater:h;
+    });
     Link::Get().WriteWaterGrid(grid);
     if(lastWorld!=worldSequence) {
         unsigned wet=0;for(const float value:grid.surface) wet+=value>-1e20f;

@@ -19,6 +19,7 @@ public final class TerrainGuard {
     private static int sequence, world;
     private static Vec3 previous, safe, held;
     private static long lastReport;
+    private static int fallTicks;
     private static volatile long generation;
     private TerrainGuard() {}
 
@@ -71,6 +72,19 @@ public final class TerrainGuard {
                 }
             }
         }
+        // Last resort: a long free fall with nothing below means the player went
+        // under Witcher's land (a gap in sampled support, or a hole dug through
+        // it). Put them back on the native surface above instead of the void.
+        fallTicks = !flying && !gliding && !player.onGround() && player.getDeltaMovement().y < -.5 ? fallTicks + 1 : 0;
+        if (fallTicks > 30 && !blockWithin(player, pos, 16) && Double.isNaN(groundBelow(pos.x, pos.y, pos.z))) {
+            double above = surfaceAbove(pos.x, pos.y, pos.z);
+            if (Double.isFinite(above) && above > pos.y + 2) {
+                pos = new Vec3(pos.x, above + .002, pos.z);
+                place(player, pos); sync(minecraft, player, pos);
+                report("lifted a player who fell under the native surface");
+            }
+            fallTicks = 0;
+        }
         if (player.onGround() && !flying && !wet) {
             // A mined Minecraft platform must not become a permanent invisible
             // checkpoint. Only native sampled support can serve as fallback.
@@ -78,6 +92,18 @@ public final class TerrainGuard {
             safe=Double.isFinite(ground)&&Math.abs(pos.y-ground)<.2?pos:null;
         }
         previous = pos;
+    }
+    private static boolean blockWithin(LocalPlayer player, Vec3 pos, int depth) {
+        for (int d = 0; d <= depth; d++) {
+            BlockPos block = BlockPos.containing(pos.x, pos.y - d, pos.z);
+            if (!player.level().getBlockState(block).getCollisionShape(player.level(), block).isEmpty()) return true;
+        }
+        return false;
+    }
+    private static double surfaceAbove(double x, double y, double z) {
+        List<SkyTri> triangles = new ArrayList<>();
+        SkyCollision.trianglesNear(new AABB(x - 1, y, z - 1, x + 1, y + 200, z + 1), triangles);
+        return TriCollider.groundAt(triangles, x, y + 200, z, .15);
     }
     private static double groundBelow(double x,double y,double z) {
         List<SkyTri> triangles=new ArrayList<>();
