@@ -7,6 +7,7 @@
 #include "NativeCamera.h"
 #include "NativeWater.h"
 #include "Digging.h"
+#include "ScriptBridgeNative.h"
 #include <string>
 #include "Link.h"
 #include "RenderTiming.h"
@@ -347,6 +348,7 @@ void Observe(void* context) {
     frame.verticalFov = sample.rawFov; // Provisional; rendering is disabled.
     WitchCraftSubmitFrame(&frame);
     SampleWater(reader,sample,now);
+    script::InstallScriptBridge(imageBase,Log);
     native::ApplyPilot(reader,imageBase,&sample,worldSequence,terrainWorld,relocation,Log);
     if (!hadSample || now - lastLog >= 3000) {
         char line[384]{};

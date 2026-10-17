@@ -18,6 +18,7 @@
 #include "HudBlend.h"
 #include "HudViewport.h"
 #include "HudScale.h"
+#include "ScriptBridgeNative.h"
 
 #include <Windows.h>
 
@@ -389,6 +390,12 @@ namespace witchcraft
                     lastPilotLog=now;lastMovementKeys=play.Keys();
                 }
                 lastPlayActive=play.Active();lastPlayGui=gui;
+                // Companion script mod: NPC hits only redirect Geralt's damage while
+                // Minecraft owns the camera; queued hurts become Minecraft damage.
+                const bool scriptPlay=play.Active()&&native::CameraReady();
+                script::SetScriptPlayActive(scriptPlay);
+                for(const auto& hurt:script::TakeScriptHurts())
+                    if(scriptPlay) link.PushInput(skycraft::proto::kInHurt,hurt.kind,hurt.a,hurt.b,0);
             } else if(movementEnabled) movement.Update(haveGame&&mc.cameraMode==1?&frame:nullptr,haveMc?&mc:nullptr,haveMc&&!status.failed,
                 focused&&game&&!::IsIconic(game)&&width>=100&&height>=100,
                 haveGame&&GameCollisionDrained(frame.collisionEpoch)&&link.CollisionConsumed(),now,sky,

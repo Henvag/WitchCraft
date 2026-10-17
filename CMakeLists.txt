@@ -46,6 +46,7 @@ add_library(dinput8 SHARED
 	host/DiagnosticWalk.cpp
 	host/DiagnosticMovement.cpp
 	host/PlaySession.cpp
+	host/ScriptBridgeNative.cpp
 	host/DiagnosticWall.cpp
 	host/DiagnosticAvatar.cpp
 	host/proxy/dinput8.def
@@ -69,6 +70,12 @@ if(MINGW)
 endif()
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(witchcraft_script_bridge_tests tests/ScriptBridgeTests.cpp)
+    target_include_directories(witchcraft_script_bridge_tests PRIVATE host protocol)
+    if(MINGW)
+        target_link_options(witchcraft_script_bridge_tests PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+    add_test(NAME script_bridge COMMAND witchcraft_script_bridge_tests)
     add_executable(witchcraft_digging_tests tests/DiggingTests.cpp)
     target_include_directories(witchcraft_digging_tests PRIVATE host protocol)
     if(MINGW)
