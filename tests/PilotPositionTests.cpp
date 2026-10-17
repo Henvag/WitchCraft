@@ -3,6 +3,36 @@
 #include <limits>
 using namespace witchcraft::native;
 int main() {
+    if(PilotVisibilityFor(false,0)!=PilotVisibility::Acquire||
+        PilotVisibilityFor(true,kPilotHideReason)!=PilotVisibility::Retain||
+        PilotVisibilityFor(true,0)!=PilotVisibility::Reapply) return 65;
+    // A native animation may clear our reason while retaining its own. The
+    // active session re-applies only ours; a fresh session must not take over
+    // a player already hidden by a cutscene or another game system.
+    if(PilotVisibilityFor(true,1)!=PilotVisibility::Reapply||
+        PilotVisibilityFor(true,kPilotHideReason|1)!=PilotVisibility::Retain||
+        PilotVisibilityFor(false,1)!=PilotVisibility::GameOwned) return 66;
+    witchcraft::PilotCommand lifetime;
+    if(PilotCommandFresh(lifetime,1000)) return 54;
+    lifetime.publishedAt=1000;
+    if(!PilotCommandFresh(lifetime,1151)||!PilotCommandFresh(lifetime,2000)||
+        PilotCommandFresh(lifetime,2001)||PilotCommandFresh(lifetime,999)) return 55;
+    // Animation/controller rejection retries are bounded without delaying a
+    // newly accepted follow or a fresh handoff.
+    PilotRetryCadence retry;
+    if(!retry.Due(100)) return 56;
+    retry.Completed(false,100);
+    if(retry.Due(115)||!retry.Due(116)) return 57;
+    retry.Completed(false,116);
+    if(retry.Due(147)||!retry.Due(148)) return 58;
+    retry.Completed(false,148);retry.Completed(false,212);
+    if(retry.Due(311)||!retry.Due(312)) return 59;
+    retry.Completed(false,312);
+    if(retry.Due(411)||!retry.Due(412)) return 60;
+    retry.Completed(true,412);
+    if(!retry.Due(413)) return 61;
+    retry.Completed(false,413);retry.Reset();
+    if(!retry.Due(414)) return 62;
     witchcraft::PilotCommand follow;
     follow.groundFollow=follow.interpolateFollow=true;
     follow.feet[1]=10;
@@ -32,6 +62,10 @@ int main() {
     if(UseLatestFollowState(follow,invalid)) return 39;
     invalid=fresh;invalid.tickQpc=1049;
     if(UseLatestFollowState(follow,invalid)) return 40;
+    invalid=fresh;invalid.curY=std::numeric_limits<double>::quiet_NaN();
+    if(UseLatestFollowState(follow,invalid)) return 63;
+    invalid=fresh;invalid.prevX=1000001;
+    if(UseLatestFollowState(follow,invalid)) return 64;
     follow.interpolateFollow=false;follow.feet[0]=42;
     ResolvePilotFeet(follow,1030,1000,late);
     if(late[0]!=42||late[1]!=10) return 32; // Diagnostics keep their exact target.
@@ -102,4 +136,8 @@ int main() {
         motion.Observe(controllerActual,3551)!=PilotAck::TimedOut) return 50;
     if(motion.Begin(controllerTarget,3600,true,4,.101)||
         motion.Begin(controllerTarget,3600,true,4,std::numeric_limits<double>::quiet_NaN())) return 51;
+    double catchup[]{103,10,-200};
+    if(PilotFollowPosition(current,catchup,out)||!PilotFollowPosition(current,catchup,out,32)||
+        std::abs(out[0]-100.5f)>.001f) return 52; // Animation displacement catches up through small steps.
+    catchup[0]=133;if(PilotFollowPosition(current,catchup,out,32)) return 53;
 }

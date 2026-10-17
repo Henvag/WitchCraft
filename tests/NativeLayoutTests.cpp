@@ -90,9 +90,16 @@ int main() {
     Put(player + 0xa0, feet); Put(camera + 0x70, eye);
     Put(camera + 0x790, forward); Put(camera + 0xa0, 67.0f);
     Check(reader.Snapshot(sample) && !sample.paused && sample.feet[0] == 1070);
+    const auto complete=sample;
     Put(camera + 0xa0, 0.0f); // Director clears the lens before invoking GetData.
     Check(!reader.Snapshot(sample));
     Check(reader.Snapshot(sample,false)&&sample.player==player&&sample.world==table+0x7000);
+    sample.feet[0]+=1;sample.paused=true;
+    Check(ReuseCamera(sample,complete,100)&&sample.feet[0]==1071&&sample.paused&&sample.rawFov==67);
+    Check(!ReuseCamera(sample,complete,251));
+    ++sample.world;Check(!ReuseCamera(sample,complete,10));sample=complete;
+    ++sample.player;Check(!ReuseCamera(sample,complete,10));sample=complete;
+    ++sample.cameraObject;Check(!ReuseCamera(sample,complete,10));
     Put(player, base + playerVtable + 8);
     Check(!reader.Snapshot(sample,false)); // Stage-specific read still checks identity.
     Put(player, base + playerVtable);Put(camera + 0xa0, 67.0f);

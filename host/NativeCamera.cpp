@@ -2,6 +2,7 @@
 #include "GameBridge.h"
 #include "Link.h"
 #include "MotionTimeline.h"
+#include "NativePilot.h"
 #include <Windows.h>
 #include <atomic>
 #include <cstdio>
@@ -22,15 +23,16 @@ bool CameraData(void* camera,void* data) {
     const auto status=ReadPilotStatus();
     DWORD foreground=0;GetWindowThreadProcessId(GetForegroundWindow(),&foreground);
     if(!command.active||!command.cameraOwned||!status.hidden||status.failed||
-        foreground!=GetCurrentProcessId()||GetTickCount64()-command.publishedAt>150||!Link::Get().McAlive()) return ok;
+        foreground!=GetCurrentProcessId()||!PilotCommandFresh(command,GetTickCount64())||!Link::Get().McAlive()) return ok;
     Reader reader(image,ReadMemory,nullptr);Sample sample{};GameFrame frame{};
     if(!reader.Snapshot(sample,false)||sample.paused||!ReadGameFrame(frame)||
         frame.worldId!=command.world||frame.collisionEpoch!=command.epoch||frame.relocation!=command.relocation) return ok;
     std::uint32_t count=0;reader.Read(sample.cameraObject+0x60,count);
     const auto stack=reader.Pointer(sample.cameraObject+0x58);
     if(!count||count>16||!stack||reader.Pointer(stack+(count-1)*40)!=reinterpret_cast<std::uintptr_t>(camera)) return ok;
-    auto mc=command.followState;skycraft::proto::McState latest{};
-    if(Link::Get().ReadMcState(latest)&&latest.teleportAck==mc.teleportAck&&latest.frameCounter>=mc.frameCounter) mc=latest;
+    auto cameraCommand=command;skycraft::proto::McState latest{};
+    if(Link::Get().ReadMcState(latest)) UseLatestFollowState(cameraCommand,latest);
+    const auto& mc=cameraCommand.followState;
     if(!(mc.flags&skycraft::proto::kMcInWorld)||(mc.flags&skycraft::proto::kMcDead)) return ok;
     LARGE_INTEGER now{},frequency{};QueryPerformanceCounter(&now);QueryPerformanceFrequency(&frequency);
     const auto pose=RenderMotionState(mc,now.QuadPart,frequency.QuadPart);

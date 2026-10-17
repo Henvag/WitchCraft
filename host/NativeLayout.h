@@ -116,6 +116,15 @@ private:
     void* context_;
 };
 
+// The director briefly clears its output while assembling a camera frame.
+// Reuse only the lens/pose, never stale actor or world identity, during that gap.
+inline bool ReuseCamera(Sample& current,const Sample& previous,std::uint64_t ageMs) {
+    if(ageMs>250||!current.player||current.player!=previous.player||
+        current.world!=previous.world||current.cameraObject!=previous.cameraObject) return false;
+    std::copy_n(previous.camera,3,current.camera);
+    std::copy_n(previous.forward,3,current.forward);current.rawFov=previous.rawFov;
+    return true;
+}
 template<class T, class U> void ToMinecraft(const T (&src)[3], U (&dst)[3]) {
     dst[0] = src[0]; dst[1] = src[2]; dst[2] = -src[1];
 }

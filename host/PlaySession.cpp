@@ -6,6 +6,7 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
     std::uint8_t input,bool stop,bool inputReady,bool hidden,bool cameraOwned) {
     using namespace skycraft::proto;
     keys_=0;
+    holdPhysics_=false;
     if(!active_&&!finished_) {
         if(sequence_) sky.teleportSeq=sequence_;
         auto arrival=mc?*mc:skycraft::proto::McState{};
@@ -34,7 +35,32 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
         if(!valid) Stop("world, collision coverage, focus or link interrupted; returning Geralt");
         else if(stop) Stop("F8 return requested; restoring Geralt");
         else if(started_&&(!inputReady||!hidden)) Stop("input capture or native hiding lost");
-        else {
+        else if(cameraOwned) {
+            // Full play uses vanilla jump, fall, swim and flight physics. The
+            // native actor is only a streaming/camera anchor; its vertical
+            // animation cannot impose the old diagnostic landing deadlines.
+            nativeGround_=game->feet[1];
+            const bool finite=std::isfinite(mc->curX)&&std::isfinite(mc->curY)&&std::isfinite(mc->curZ);
+            followLag_=finite?std::hypot(mc->curX-game->feet[0],mc->curZ-game->feet[2]):0;
+            if(!finite) Stop("Minecraft reported a non-finite position");
+            else if(followLag_>32||std::abs(mc->curY-nativeGround_)>256) Stop("position outside native streaming/camera range");
+            if(mc->frameCounter!=frame_) {frame_=mc->frameCounter;freshAt_=now;}
+            if(now-freshAt_>1000) Stop("Minecraft position reports stalled");
+            if(!catchingUp_&&followLag_>1.25) catchingUp_=true;
+            else if(catchingUp_&&followLag_<.5) catchingUp_=false;
+            const bool coverage=(game->flags&(kGamePlayPatch|kGameDiagnosticPatch))!=0;
+            // Pause physics, including inertia/gravity, rather than merely
+            // releasing W while an airborne player continues past the patch.
+            holdPhysics_=active_&&(catchingUp_||!coverage);
+            const bool gui=(mc->flags&kMcScreenOpen)!=0;
+            if(active_) {
+                started_|=inputReady&&hidden;
+                keys_=inputReady&&hidden&&!gui&&!holdPhysics_?static_cast<std::uint8_t>(input&31):0;
+                reason_=!coverage?"holding Minecraft for terrain delivery; F8 returns Geralt":catchingUp_?
+                    "holding Minecraft while native anchor catches up; F8 returns Geralt":gui?
+                    "Minecraft inventory/menu active":"continuous Minecraft physics; F8 returns Geralt";
+            }
+        } else {
             const bool coverage=(game->flags&(kGamePlayPatch|kGameDiagnosticPatch))!=0;
             if(!coverage&&!waitingCoverage_) {waitingCoverage_=true;coverageAt_=now;}
             if(coverage) waitingCoverage_=false;
@@ -99,6 +125,6 @@ void PlaySession::Update(const GameFrame* game,const skycraft::proto::McState* m
     }
     sky.teleportSeq=sequence_;sky.posX=anchor_.feet[0];sky.posY=anchor_.feet[1]+.5;sky.posZ=anchor_.feet[2];
     sky.worldId=anchor_.worldId;sky.collisionEpoch=anchor_.collisionEpoch;
-    sky.flags=active_?kSkyInGame:kSkyMenuOpen;
+    sky.flags=active_?(kSkyInGame|(cameraOwned?kSkyManagedTerrain:0)|(holdPhysics_?kSkyHoldPhysics:0)):kSkyMenuOpen;
 }
 }

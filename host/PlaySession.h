@@ -32,6 +32,7 @@ private:
     bool catchingUp_=false;
     bool waitingCoverage_=false;
     bool active_=false,finished_=false,started_=false,spaceDown_=false,jumping_=false,tookOff_=false,air_=false;
+    bool holdPhysics_=false;
     std::uint8_t keys_=0;
     const char* reason_="waiting for collision and stationary player";
 };

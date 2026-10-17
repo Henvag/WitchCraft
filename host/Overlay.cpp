@@ -510,9 +510,11 @@ namespace witchcraft
         }
         if(pilotEnabled) {
             bool pixels=false;const auto* bgra=static_cast<const std::uint8_t*>(g_bits);
-            for(std::size_t i=0;i<static_cast<std::size_t>(width)*height;++i) if(bgra[i*4+3]) { pixels=true;break; }
+            if(!playEnabled) for(std::size_t i=0;i<static_cast<std::size_t>(width)*height;++i) if(bgra[i*4+3]) { pixels=true;break; }
             PilotCommand command;
-            command.active=uploaded&&(pixels||(playEnabled&&mc.cameraMode==0&&native::CameraReady()))&&pilotDisplay;
+            // A fully occluded/off-screen avatar has no visible pixels. That
+            // is a valid play frame, not a reason to restore Geralt.
+            command.active=uploaded&&(pixels||playEnabled)&&pilotDisplay;
             command.cameraOwned=playEnabled&&native::CameraReady();
             command.publishedAt=::GetTickCount64();
             command.groundFollow=playEnabled&&play.GroundFollow();

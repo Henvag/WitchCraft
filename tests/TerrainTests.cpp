@@ -12,6 +12,17 @@ void Fill(TerrainPatch& patch) {
         patch.Set(i,{x,y,x*0.1f+y*0.05f,0.99f,true});
     }
 }
+double CornerCellArea(const std::vector<skycraft::proto::ColTri>& triangles) {
+    double area=0;
+    for(const auto& t:triangles) {
+        const double x=(t.v[0]+t.v[3]+t.v[6])/3.0;
+        const double y=-(t.v[2]+t.v[5]+t.v[8])/3.0;
+        if(x< -8||x> -7||y< -8||y> -7) continue;
+        area+=std::abs((t.v[3]-t.v[0])*(t.v[8]-t.v[2])-
+            (t.v[5]-t.v[2])*(t.v[6]-t.v[0]))*.5;
+    }
+    return area;
+}
 int main() {
     TerrainSchedule stream;
     Check(stream.BeginIfNeeded(1,1,0,0,0,0));
@@ -45,6 +56,7 @@ int main() {
     }
     const auto bounds=patch.Region(9,512);
     Check(bounds.epoch==9&&bounds.minX==-8&&bounds.maxX==8&&bounds.minZ==-8&&bounds.maxZ==8);
+    Check(bounds.minY==-24&&bounds.maxY==2&&bounds.maxY-bounds.minY<=32);
     Check(patch.Contains(0,0)&&!patch.Contains(8,0));
     Check(patch.Contains(2,0,6)&&!patch.Contains(2.1f,0,6));
     Check(patch.Contains(6,0,2)&&!patch.Contains(6.1f,0,2));
@@ -59,18 +71,53 @@ int main() {
     // Missing centre hit must remove both triangles instead of bridging a hole.
     patch.Set(TerrainPatch::corners,{0,0,0,0,false});
     Check(patch.Triangles().size()==510);
+    Check(CornerCellArea(patch.Triangles())==0);
     Fill(patch);
     float x,y; patch.QueryPoint(TerrainPatch::corners,x,y);
     patch.Set(TerrainPatch::corners,{x,y,-5,1,true});
     Check(patch.Triangles().size()==510); // Discontinuous lower surface.
+    Check(CornerCellArea(patch.Triangles())==0);
+    Fill(patch);
+    patch.QueryPoint(TerrainPatch::corners,x,y);
+    const float measured=x*.1f+y*.05f+.3f;
+    patch.Set(TerrainPatch::corners,{x,y,measured,1,true});
+    const auto uneven=patch.Triangles();
+    Check(uneven.size()==514); // Measured bump retains support instead of a one-metre hole.
+    for(int i=0;i<4;++i) Check(std::abs(uneven[i].v[7]-measured)<1e-5);
     Fill(patch);
     patch.QueryPoint(0,x,y); patch.Set(0,{x,y,100,1,true});
-    Check(patch.Triangles().size()==510); // Cliff cannot become a ramp.
+    Check(patch.Triangles().size()==512);
+    Check(std::abs(CornerCellArea(patch.Triangles())-.5)<1e-6); // Opposite half survives; cliff cannot become a ramp.
+    for(const auto& t:patch.Triangles()) for(int i=0;i<3;++i) Check(t.v[i*3+1]<2);
     Fill(patch);
     patch.Set(0,{x,y,0,std::numeric_limits<float>::infinity(),true});
-    Check(patch.Triangles().size()==510);
+    Check(patch.Triangles().size()==512);
+    Check(std::abs(CornerCellArea(patch.Triangles())-.5)<1e-6);
     Fill(patch);
     patch.Set(0,{x,y,std::numeric_limits<float>::quiet_NaN(),1,true});
-    Check(patch.Triangles().size()==510);
-    puts("terrain slope, winding, holes, cliffs and invalid-data checks passed");
+    Check(patch.Triangles().size()==512);
+    Fill(patch);
+    patch.Set(0,{});
+    Check(std::abs(CornerCellArea(patch.Triangles())-.5)<1e-6);
+    patch.Set(1,{});
+    Check(std::abs(CornerCellArea(patch.Triangles())-.25)<1e-6);
+    // A 49-degree diagonal slope spans 1.6 m across a square. Its measured
+    // triangles are walkable and must not be discarded by a whole-cell limit.
+    patch.Begin(0,0,0);
+    for(int i=0;i<TerrainPatch::samples;++i) {
+        patch.QueryPoint(i,x,y);
+        patch.Set(i,{x,y,x*.8f+y*.8f,.662f,true});
+    }
+    Check(patch.Triangles().size()==512);
+    Check(std::abs(CornerCellArea(patch.Triangles())-1)<1e-6);
+    // A real missing centre still removes the surface even on this incline.
+    patch.Set(TerrainPatch::corners,{});
+    Check(CornerCellArea(patch.Triangles())==0);
+    // Lake-bed samples below the former 8 m limit fit the advertised region.
+    patch.Begin(0,0,0);
+    for(int i=0;i<TerrainPatch::samples;++i) {
+        patch.QueryPoint(i,x,y);patch.Set(i,{x,y,-20,1,true});
+    }
+    Check(patch.Triangles().size()==512&&patch.Region(9,512).minY<=-20);
+    puts("terrain slope, partial support, winding, real holes, cliffs and depth checks passed");
 }
