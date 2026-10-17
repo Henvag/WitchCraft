@@ -1,37 +1,20 @@
 // WitchCraft main menu.
 //
-// The menu background video is replaced by tools/menu_scene (the Minecraft
-// player kneels where Geralt did and the WitchCraft logo is drawn into it), so
-// the Flash Witcher logo above the menu list is hidden here. Without the
-// replacement video this only removes the Witcher logo.
+// tools/menu_scene replaces the Hearts of Stone menu video (the Minecraft
+// player sits where Geralt did) and swaps the WitchCraft logo into the menu's
+// Flash file in place of the Witcher logo. This makes that menu the one always
+// shown.
 
-@addMethod(CR4IngameMenu)
-function WcHideGameLogo()
+// The game normally picks the base, Hearts of Stone or Blood and Wine menu at
+// random; only the Hearts of Stone video carries the Minecraft player.
+@wrapMethod(CR4Game)
+function PopulateMenuQueueMainAlways( out menus : array< name > )
 {
-	var list, logo : CScriptedFlashSprite;
-	var title : CScriptedFlashTextField;
-
-	if( !isMainMenu || !m_flashModule )
-		return;
-	list = m_flashModule.GetChildFlashSprite( "menuListModule" );
-	if( list )
-		logo = list.GetChildFlashSprite( "mcGameLogo" );
-	if( logo )
+	if( theGame.GetDLCManager().IsEP1Available() )
 	{
-		logo.SetVisible( false );
-		logo.SetAlpha( 0 );
+		_mainMenuType = 1;
+		menus.PushBack( 'CommonMainMenuEP1' );
+		return;
 	}
-	// The version label sits where the logo was, on the menu's dark panel
-	// (which would hide a logo drawn into the video), so it carries the name.
-	title = m_flashModule.GetChildFlashTextField( "txtVersion" );
-	if( title )
-		title.SetTextHtml( "<p align='center'><font size='54' color='#F2E6C8'>WitchCraft</font></p>" );
-}
-
-// Runs when the main menu opens and whenever its root list is rebuilt.
-@wrapMethod(CR4IngameMenu)
-function PopulateMenuData()
-{
-	wrappedMethod();
-	WcHideGameLogo();
+	wrappedMethod( menus );
 }
