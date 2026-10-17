@@ -4,6 +4,28 @@ Handoff written 2026-10-17. This is a development snapshot, not a claim that the
 requested features are finished. Recheck Git, source, installed binaries and logs
 before making changes. Some older README entries describe historical prototypes.
 
+## Status update 2026-10-17 (branch `claude/project-thread-wogvfq`)
+
+Implemented, built, 26/26 CTest + Java recovery tests pass, installed (backups in
+staging `game-backup-*`/`minecraft-backup-*`), **not yet verified in game**:
+
+- F5 front view: `NativeCamera` learns the custom-camera rotation layout
+  (`AngleLayoutProbe`) before enabling it; adapter reports the unflipped look
+  (`kGameFrontView`) so MC yaw does not follow the turned camera.
+- Elytra: MC flag bit 10 `kMcFallFlying`; TerrainGuard no longer returns gliders;
+  flight/gliding >6 m above anchor skips terrain holds; anchor steps up to 2 m.
+- Native water: `CWorld::GetWaterLevel` approx path (world+0x57c0, RVA 0x23fd3d0,
+  -10000 = none) sampled into `WaterGrid` (`host/NativeWater.h`); MC accepts the
+  grid only for the current world.
+- Digging: stable world id = FNV hash of CWorld depot path (+0x5430/0x5438),
+  mapped into SkyState/WaterGrid. Land sent as diggable grass; kRenDug cells cut
+  from collision (with kTriGhost originals), voxels and occlusion
+  (`host/Digging.h`). Native Witcher mesh/collision are untouched: holes are MC
+  blocks/walls drawn over Witcher's image by the overlay.
+- Not started: damage both ways and NPC interaction. Witcher health/damage live in
+  WitcherScript, so this needs either native script-VM calls or a companion
+  script mod (decision pending with the user).
+
 ## Goal and user priorities
 
 Make The Witcher 3 playable through Minecraft, similar to
