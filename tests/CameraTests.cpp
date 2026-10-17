@@ -33,4 +33,48 @@ int main() {
     pose.cameraMode=3;if(CameraPosition(pose,ground,original,out)) return 11;
     pose.cameraMode=0;pose.eyeHeight=std::numeric_limits<float>::quiet_NaN();
     if(CameraPosition(pose,ground,original,out)) return 12;
+
+    // Front view: learn an unknown rotation layout from built forward vectors.
+    const AngleLayout truth{2,0,-1,1,90}; // e.g. (yaw, roll, pitch) with mirrored pitch
+    AngleLayoutProbe probe;
+    for(unsigned frame=0;frame<200&&!probe.Ready();++frame) {
+        const float angles[]{static_cast<float>(frame)*1.7f-40,0,-12.f+static_cast<float>(frame%7)};
+        float forward[3]{};AngleForward(angles,truth,forward);
+        probe.Observe(angles,forward);
+    }
+    if(!probe.Ready()) return 13;
+    const auto& learned=probe.Locked();
+    // Equivalent layouts are fine; the forward they produce must match.
+    for(float yaw:{-170.f,-30.f,15.f,95.f}) {
+        const float angles[]{yaw,0,-20};float a[3]{},b[3]{};
+        AngleForward(angles,truth,a);AngleForward(angles,learned,b);
+        if(a[0]*b[0]+a[1]*b[1]+a[2]*b[2]<.9999f) return 14;
+    }
+    // Level views and ambiguous inputs never lock a layout.
+    AngleLayoutProbe level;
+    for(unsigned frame=0;frame<200;++frame) {
+        const float angles[]{static_cast<float>(frame),0,0};float forward[3]{};
+        AngleForward(angles,truth,forward);level.Observe(angles,forward);
+    }
+    if(level.Ready()) return 15;
+    // A steady view without heading change never locks either.
+    AngleLayoutProbe steady;
+    for(unsigned frame=0;frame<200;++frame) {
+        const float angles[]{30,0,-15};float forward[3]{};
+        AngleForward(angles,truth,forward);steady.Observe(angles,forward);
+    }
+    if(steady.Ready()) return 16;
+    // The front camera sits along the look direction and faces back at the eye.
+    McState front{};front.x=10;front.y=60;front.z=-20;front.eyeHeight=1.62f;front.cameraMode=2;front.cameraDistance=3;
+    const float angles[]{40,0,-15};float position[3]{},turned[3]{},look[3]{},view[3]{};
+    if(!FrontCamera(front,angles,learned,position,turned,look)) return 17;
+    const float eye[]{10,20,61.62f};
+    for(int i=0;i<3;++i) if(std::abs(position[i]-(eye[i]+look[i]*3))>.0001f) return 18;
+    if(!AngleForward(turned,learned,view)) return 19;
+    for(int i=0;i<3;++i) if(std::abs(view[i]+look[i])>.0001f) return 20;
+    front.cameraDistance=0; // Unknown zoom falls back to vanilla's 4 blocks.
+    if(!FrontCamera(front,angles,learned,position,turned,look)||std::abs(position[0]-(eye[0]+look[0]*4))>.0001f) return 21;
+    front.y=std::numeric_limits<double>::quiet_NaN();
+    if(FrontCamera(front,angles,learned,position,turned,look)) return 22;
+    if(FrontCamera(pose,angles,AngleLayout{},position,turned,look)) return 23;
 }

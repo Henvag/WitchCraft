@@ -14,7 +14,10 @@ enum GameFlags : std::uint32_t {
     kGamePlaying = 1, kGameMenu = 2, kGameLoading = 4,
     kGameScripted = 8, kGameCollisionReady = 16,
     kGameDiagnosticPatch = 32, // Sampled patch only; never enables normal control.
-    kGamePlayPatch = 64 // Published 16 m patch with a 2 m streaming margin.
+    kGamePlayPatch = 64, // Published 16 m patch with a 2 m streaming margin.
+    // Camera shows Minecraft's front F5 view; forward is still the look direction,
+    // so the rendered camera faces the opposite way.
+    kGameFrontView = 128
 };
 struct GameFrame {
     std::uint32_t size = sizeof(GameFrame), version = kBridgeVersion;

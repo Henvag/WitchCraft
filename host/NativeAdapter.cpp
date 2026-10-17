@@ -4,6 +4,7 @@
 #include "NativeCollision.h"
 #include "CollisionTiles.h"
 #include "NativePilot.h"
+#include "NativeCamera.h"
 #include "Link.h"
 #include "RenderTiming.h"
 #include "MotionTimeline.h"
@@ -264,7 +265,14 @@ void Observe(void* context) {
     frame.collisionEpoch = terrainWorld;
     native::ToMinecraft(sample.feet, frame.feet);
     native::ToMinecraft(sample.camera, frame.camera);
-    native::ToMinecraft(sample.forward, frame.forward);
+    float flipped[3]{};
+    if(native::FrontViewForward(flipped,now)&&
+        sample.forward[0]*flipped[0]+sample.forward[1]*flipped[1]+sample.forward[2]*flipped[2]>.995f) {
+        // The director built the front camera; Minecraft keeps looking the other way.
+        const float look[]{-sample.forward[0],-sample.forward[1],-sample.forward[2]};
+        native::ToMinecraft(look, frame.forward);
+        frame.flags|=kGameFrontView;
+    } else native::ToMinecraft(sample.forward, frame.forward);
     frame.verticalFov = sample.rawFov; // Provisional; rendering is disabled.
     WitchCraftSubmitFrame(&frame);
     native::ApplyPilot(reader,imageBase,&sample,worldSequence,terrainWorld,relocation,Log);

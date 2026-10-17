@@ -370,11 +370,10 @@ namespace witchcraft
                     if(input.gui) cursor(input.cursorX,input.cursorY);
                     for(unsigned i=0;i<input.eventCount;++i) {
                         const auto& event=input.events[i];
-                        // F5 switches our supported first/behind perspectives.
-                        // Skip vanilla's front view so native look ownership
-                        // stays consistent with movement and item aiming.
+                        // F5 cycles first person, behind and front. Front view is
+                        // skipped until the camera rotation layout is verified.
                         if(event.type==skycraft::proto::kInKey&&event.code==62&&!input.gui&&native::CameraReady()) {
-                            if(event.a) for(unsigned press=0;press<(mc.cameraMode==1?2u:1u);++press) {
+                            if(event.a) for(unsigned press=0;press<(mc.cameraMode==1&&!native::FrontViewReady()?2u:1u);++press) {
                                 link.PushInput(skycraft::proto::kInKey,62,1);link.PushInput(skycraft::proto::kInKey,62,0);
                             }
                             continue;
@@ -402,7 +401,7 @@ namespace witchcraft
             constexpr std::uint16_t codes[]{26,4,22,7,44};
             for(unsigned i=0;i<5;++i) link.PushInput(skycraft::proto::kInKey,codes[i],(desired&(1u<<i))?1:0);
             if(haveMc&&focused&&(mc.flags&skycraft::proto::kMcInWorld)&&!(mc.flags&skycraft::proto::kMcScreenOpen)&&
-                ((playEnabled&&play.Active()&&native::CameraReady())?mc.cameraMode==2:mc.cameraMode!=1)&&now>=nextPilotPerspective) {
+                ((playEnabled&&play.Active()&&native::CameraReady())?mc.cameraMode==2&&!native::FrontViewReady():mc.cameraMode!=1)&&now>=nextPilotPerspective) {
                 link.PushInput(skycraft::proto::kInKey,62,1);link.PushInput(skycraft::proto::kInKey,62,0);nextPilotPerspective=now+750;
             }
             const bool active=playEnabled?play.Active():movementEnabled?movement.Active():pilot.Active();

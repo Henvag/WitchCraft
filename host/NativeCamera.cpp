@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <atomic>
 #include <cstdio>
+#include <mutex>
 namespace witchcraft::native {
 namespace {
 using GetData=bool(*)(void*,void*);
@@ -13,6 +14,12 @@ GetData original=nullptr;
 std::uintptr_t image=0;
 std::atomic<bool> ready=false;
 void(*logger)(const char*)=nullptr;
+AngleLayoutProbe probe;
+std::atomic<bool> frontReady=false;
+std::mutex frontLock;
+float frontForward[3]{};
+std::uint64_t frontAt=0;
+bool flippedLast=false; // Director forward then shows the front camera, not the look.
 bool ReadMemory(void*,std::uintptr_t address,void* out,std::size_t bytes) {
     SIZE_T got=0;return ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<void*>(address),out,bytes,&got)&&got==bytes;
 }
@@ -37,7 +44,24 @@ bool CameraData(void* camera,void* data) {
     LARGE_INTEGER now{},frequency{};QueryPerformanceCounter(&now);QueryPerformanceFrequency(&frequency);
     const auto pose=RenderMotionState(mc,now.QuadPart,frequency.QuadPart);
     auto* values=static_cast<float*>(data);float position[3]{};
-    if(CameraPosition(pose,sample.feet,values,position)) {
+    float* angles=values+kCameraAngles;
+    if(mc.cameraMode!=2||!probe.Ready()) {
+        float built[3]{};
+        if(!flippedLast&&reader.Read(sample.cameraObject+0x790,built)&&!probe.Ready()&&probe.Observe(angles,built)) {
+            frontReady=true;
+            if(logger) {const auto& l=probe.Locked();char line[200]{};std::snprintf(line,sizeof(line),
+                "native camera: rotation layout verified pitch=%d yaw=%d pitchSign=%.0f yawSign=%.0f yawOffset=%.0f; front view enabled",
+                l.pitch,l.yaw,l.pitchSign,l.yawSign,l.yawOffset);logger(line);}
+        }
+        flippedLast=false;
+    }
+    float front[3]{},frontAngles[3]{},look[3]{};
+    if(mc.cameraMode==2&&probe.Ready()&&FrontCamera(pose,angles,probe.Locked(),front,frontAngles,look)) {
+        for(int i=0;i<3;++i) {values[i]=front[i];angles[i]=frontAngles[i];position[i]=front[i];}
+        {std::lock_guard lock(frontLock);for(int i=0;i<3;++i) frontForward[i]=-look[i];frontAt=GetTickCount64();}
+        flippedLast=true;
+    } else flippedLast=false;
+    if(flippedLast||CameraPosition(pose,sample.feet,values,position)) {
         for(int i=0;i<3;++i) values[i]=position[i];
         if(mc.cameraMode==0) {values[0x34/4]=.05f;static_cast<unsigned char*>(data)[0x3c]=1;}
         static ULONGLONG lastLog=0;static unsigned applied=0;
@@ -52,6 +76,13 @@ bool CameraData(void* camera,void* data) {
 }
 }
 bool CameraReady() {return ready.load();}
+bool FrontViewReady() {return ready.load()&&frontReady.load();}
+bool FrontViewForward(float* forward,std::uint64_t now,std::uint64_t maxAgeMs) {
+    std::lock_guard lock(frontLock);
+    if(!frontAt||now<frontAt||now-frontAt>maxAgeMs) return false;
+    for(int i=0;i<3;++i) forward[i]=frontForward[i];
+    return true;
+}
 void PrepareCamera(const Reader& reader,std::uintptr_t base,const Sample* sample,void(*log)(const char*)) {
     if(ready||!sample) return;
     std::uint32_t count=0;

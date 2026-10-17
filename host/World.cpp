@@ -635,7 +635,7 @@ float4 PSMain(VSOut i) : SV_Target
 		{
 			float yaw = (a_game ? std::atan2(-a_game->forward[0], a_game->forward[2]) : a_mc.yaw * kPi / 180.0f);
 			float pitch = (a_game ? std::atan2(-a_game->forward[1], std::hypot(a_game->forward[0], a_game->forward[2])) : a_mc.pitch * kPi / 180.0f);
-			if (!a_game && a_mc.cameraMode == 2) {
+			if ((!a_game || (a_game->flags & kGameFrontView)) && a_mc.cameraMode == 2) {
 				yaw += kPi;
 				pitch = -pitch;
 			}
